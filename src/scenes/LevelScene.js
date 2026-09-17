@@ -10,6 +10,9 @@ import {
   levelStatus,
   starsFor,
   hammerCell,
+  addMoves,
+  goalsFraction,
+  EXTRA_MOVES,
 } from '../core/level.js';
 import { getLevel, LEVELS_TOTAL } from '../core/levels.js';
 import { getProgress, setProgress } from '../meta/store.js';
@@ -44,6 +47,8 @@ export class LevelScene extends BoardScene {
     this.scoreState = createScoreState();
     this.pieces = generateSet(this.board, this.rng);
     this.finished = false;
+    this.ended = false; // партия засчитана в задания
+    this.extraUsed = false; // «+5 ходов» уже брали
 
     addBackdrop(this);
     this.buildBoard();
@@ -334,8 +339,16 @@ export class LevelScene extends BoardScene {
     this.finished = true;
     const stars = status === 'won' ? starsFor(this.state) : 0;
     playSound(status === 'won' ? 'fanfare' : 'gameOver');
-    const ended = recordLevelEnd(getProgress());
-    setProgress(ended.progress);
+    // Партия считается один раз, даже если после «+5 ходов» уровень закончится снова.
+    let tasksDone = [];
+    if (!this.ended) {
+      this.ended = true;
+      const ended = recordLevelEnd(getProgress());
+      setProgress(ended.progress);
+      tasksDone = ended.completed;
+    }
+    // «+5 ходов» предлагаем, когда цели выполнены хотя бы наполовину — иначе это пустая трата.
+    const canExtend = status === 'lost' && !this.extraUsed && goalsFraction(this.state) >= 0.5;
     this.time.delayedCall(700, () => {
       this.scene.launch('LevelResult', {
         levelId: this.levelId,
@@ -343,8 +356,24 @@ export class LevelScene extends BoardScene {
         stars,
         score: this.state.score,
         hasNext: this.levelId < LEVELS_TOTAL,
-        tasksDone: ended.completed,
+        tasksDone,
+        canExtend,
       });
     });
+  }
+
+  // Продолжение после поражения (за рекламу): +5 ходов и, если ставить нечего, новые фигуры.
+  extraMoves() {
+    this.extraUsed = true;
+    this.finished = false;
+    this.state = addMoves(this.state, EXTRA_MOVES);
+    if (!hasAnyMove(this.board, this.pieces)) {
+      this.pieces = generateSet(this.board, this.rng);
+      this.drawTray([0, 1, 2]);
+    }
+    this.updateHud();
+    this.movesText.setColor(THEME.text);
+    this.tweens.add({ targets: this.movesText, scale: { from: 1.6, to: 1 }, duration: 450, ease: 'Back.easeOut' });
+    playSound('deal');
   }
 }

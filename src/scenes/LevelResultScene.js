@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
 import { TEX } from './textures.js';
-import { addText, addButton, addTextButton, flyCoins, addCoinCounter } from './ui.js';
+import { addText, addButton, addTextButton, flyCoins, addCoinCounter, showToast } from './ui.js';
 import { getProgress, setProgress } from '../meta/store.js';
-import { completeLevel } from '../meta/progress.js';
+import { completeLevel, addCoins } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
+import { showRewarded } from '../platform/ads.js';
+import { EXTRA_MOVES } from '../core/level.js';
 
 const PANEL_W = 580;
-const PANEL_H = 660;
+const PANEL_H = 700;
 
 // Итог уровня: звёзды и награда либо предложение повторить.
 export class LevelResultScene extends Phaser.Scene {
@@ -16,7 +18,8 @@ export class LevelResultScene extends Phaser.Scene {
     super('LevelResult');
   }
 
-  create({ levelId, status, stars, score, hasNext, tasksDone = [] }) {
+  create({ levelId, status, stars, score, hasNext, tasksDone = [], canExtend = false }) {
+    this.busy = false;
     const won = status === 'won';
     const reward = won ? completeLevel(getProgress(), levelId, stars) : { coins: 0 };
     if (won) setProgress(reward.progress);
@@ -53,15 +56,15 @@ export class LevelResultScene extends Phaser.Scene {
     panel.add([bg, ribbon, title]);
     panel.add(this.createStars(stars, won));
 
-    const scoreLabel = addText(this, 0, 60, `Счёт: ${score}`, 40, {
+    const scoreLabel = addText(this, 0, 40, `Счёт: ${score}`, 40, {
       color: THEME.panelText,
       stroke: null,
     });
     panel.add(scoreLabel);
 
     if (won && reward.coins > 0) {
-      const coinIcon = this.add.image(-50, 130, TEX.coin).setDisplaySize(60, 60);
-      const coinText = addText(this, 20, 130, `+${reward.coins}`, 46, {
+      const coinIcon = this.add.image(-50, 104, TEX.coin).setDisplaySize(60, 60);
+      const coinText = addText(this, 20, 104, `+${reward.coins}`, 46, {
         color: THEME.gold,
         stroke: '#b5651d',
       });
@@ -71,13 +74,22 @@ export class LevelResultScene extends Phaser.Scene {
         flyCoins(this, m.tx, m.ty, this.coins, 8);
         this.coins.setValue(getProgress().coins, true);
       });
+      // Удвоить монеты за рекламу.
+      const double = addButton(this, 0, 176, '×2 монеты', () => this.doubleCoins(double, reward.coins, coinText, coinIcon), {
+        width: 360,
+        height: 76,
+        fontSize: 32,
+        variant: 'orange',
+        icon: TEX.video,
+      });
+      panel.add(double);
     } else if (won) {
       panel.add(
-        addText(this, 0, 130, 'Звёзды уже получены', 30, { color: THEME.panelMuted, stroke: null }),
+        addText(this, 0, 104, 'Звёзды уже получены', 30, { color: THEME.panelMuted, stroke: null }),
       );
     } else {
       panel.add(
-        addText(this, 0, 130, 'Ходы закончились.\nПопробуй ещё раз!', 32, {
+        addText(this, 0, 110, canExtend ? 'Ходы закончились,\nно ты совсем рядом!' : 'Ходы закончились.\nПопробуй ещё раз!', 32, {
           color: THEME.panelMuted,
           stroke: null,
           lineSpacing: 4,
@@ -85,17 +97,31 @@ export class LevelResultScene extends Phaser.Scene {
       );
     }
 
-    // Главная кнопка: дальше по уровням, повтор или выход.
-    const mainLabel = won ? (hasNext ? 'Дальше' : 'К карте') : 'Ещё раз';
-    const mainAction = () => {
-      if (!won) return this.go(levelId);
-      return hasNext ? this.go(levelId + 1) : this.toMap();
-    };
-    panel.add(addButton(this, 0, 230, mainLabel, mainAction, { width: 360, height: 104 }));
+    // Главная кнопка: дальше по уровням, «+5 ходов» за рекламу, повтор или выход.
+    if (!won && canExtend) {
+      const extend = addButton(this, 0, 215, `+${EXTRA_MOVES} ходов`, () => this.extend(extend), {
+        width: 360,
+        height: 104,
+        fontSize: 42,
+        variant: 'orange',
+        icon: TEX.video,
+      });
+      panel.add(extend);
+      const retry = addTextButton(this, -110, 300, 'Ещё раз', 32, () => this.go(levelId));
+      const toMap = addTextButton(this, 120, 300, 'К карте', 32, () => this.toMap());
+      panel.add([retry.text, retry.zone, toMap.text, toMap.zone]);
+    } else {
+      const mainLabel = won ? (hasNext ? 'Дальше' : 'К карте') : 'Ещё раз';
+      const mainAction = () => {
+        if (!won) return this.go(levelId);
+        return hasNext ? this.go(levelId + 1) : this.toMap();
+      };
+      panel.add(addButton(this, 0, 250, mainLabel, mainAction, { width: 360, height: 104 }));
 
-    if (mainLabel !== 'К карте') {
-      const toMap = addTextButton(this, 0, 306, 'К карте', 32, () => this.toMap());
-      panel.add([toMap.text, toMap.zone]);
+      if (mainLabel !== 'К карте') {
+        const toMap = addTextButton(this, 0, 322, 'К карте', 32, () => this.toMap());
+        panel.add([toMap.text, toMap.zone]);
+      }
     }
 
     // Задания, выполненные этим уровнем, — плашка над окном.
@@ -145,6 +171,44 @@ export class LevelResultScene extends Phaser.Scene {
       });
     }
     return views;
+  }
+
+  // +5 ходов за рекламу: окно закрывается, уровень продолжается.
+  async extend(button) {
+    if (this.busy) return;
+    this.busy = true;
+    button.disableInteractive();
+    const rewarded = await showRewarded();
+    if (!rewarded) {
+      showToast(this, 'Реклама недоступна', GAME_HEIGHT / 2 + 360);
+      button.setInteractive();
+      this.busy = false;
+      return;
+    }
+    this.scene.stop();
+    this.scene.get('Level').extraMoves();
+  }
+
+  async doubleCoins(button, coins, coinText, coinIcon) {
+    if (this.busy) return;
+    this.busy = true;
+    button.disableInteractive();
+    const rewarded = await showRewarded();
+    if (!rewarded) {
+      showToast(this, 'Реклама недоступна', GAME_HEIGHT / 2 + 360);
+      button.setInteractive();
+      this.busy = false;
+      return;
+    }
+    setProgress(addCoins(getProgress(), coins));
+    button.setVisible(false);
+    coinText.setText(`+${coins * 2}`);
+    this.tweens.add({ targets: [coinText, coinIcon], scale: { from: 1.4, to: 1 }, duration: 400, ease: 'Back.easeOut' });
+    const m = coinIcon.getWorldTransformMatrix();
+    flyCoins(this, m.tx, m.ty, this.coins, 8);
+    this.coins.setValue(getProgress().coins, true);
+    playSound('record');
+    this.busy = false;
   }
 
   go(levelId) {

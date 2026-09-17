@@ -143,6 +143,22 @@ export function hammerCell(state, row, col) {
   return { state: next, iceBroken, gems, cleared };
 }
 
+// Сколько ходов даёт реклама после поражения.
+export const EXTRA_MOVES = 5;
+
+// Доля выполнения целей (0…1) — предлагать «+5 ходов» имеет смысл, когда игрок близко.
+export function goalsFraction(state) {
+  if (state.goals.length === 0) return 1;
+  const sum = state.goals.reduce((acc, g) => acc + Math.min(1, g.progress / g.target), 0);
+  return sum / state.goals.length;
+}
+
+// Дополнительные ходы после поражения: партия продолжается.
+export function addMoves(state, count = EXTRA_MOVES) {
+  if (state.movesLeft === null) return state;
+  return { ...state, movesLeft: state.movesLeft + count, finished: false };
+}
+
 // 'playing' | 'won' | 'lost'. hasMoves — можно ли поставить хоть одну фигуру из лотка.
 export function levelStatus(state, hasMoves = true) {
   if (goalsDone(state)) return 'won';

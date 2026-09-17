@@ -2,8 +2,11 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
 import { TEX } from './textures.js';
-import { addText, addButton } from './ui.js';
+import { addText, addButton, showToast } from './ui.js';
 import { playSound } from '../platform/audio.js';
+import { showRewarded } from '../platform/ads.js';
+import { getProgress, setProgress } from '../meta/store.js';
+import { addCoins } from '../meta/progress.js';
 import { loopTween, reducedMotion } from './motion.js';
 
 const PANEL_W = 560;
@@ -43,27 +46,50 @@ export class GameOverScene extends Phaser.Scene {
     const title = addText(this, 0, -PANEL_H / 2, 'Игра окончена', 50, { stroke: '#8a2358' });
 
     const muted = { color: THEME.panelMuted, stroke: null };
-    const scoreLabel = addText(this, 0, -196, 'Счёт', 32, muted);
-    const scoreText = addText(this, 0, -84, '0', 104, { color: THEME.panelText, stroke: null });
+    const scoreLabel = addText(this, 0, -212, 'Счёт', 32, muted);
+    const scoreText = addText(this, 0, -112, '0', 100, { color: THEME.panelText, stroke: null });
     const bestText = isNewBest
-      ? addText(this, 0, 20, 'Новый рекорд!', 44, { color: THEME.gold, stroke: '#b5651d' })
-      : addText(this, 0, 20, `Рекорд: ${best}`, 40, muted);
+      ? addText(this, 0, -12, 'Новый рекорд!', 44, { color: THEME.gold, stroke: '#b5651d' })
+      : addText(this, 0, -12, `Рекорд: ${best}`, 40, muted);
 
     // Монеты за партию
-    const coinsText = addText(this, 0, 100, `+${coinsEarned}`, 52, { color: THEME.gold, stroke: '#b5651d' });
-    const coinIcon = this.add.image(0, 100, TEX.coin).setDisplaySize(60, 60);
-    const rowWidth = coinIcon.displayWidth + 12 + coinsText.width;
-    coinIcon.x = -rowWidth / 2 + coinIcon.displayWidth / 2;
-    coinsText.setOrigin(0, 0.5).setX(coinIcon.x + coinIcon.displayWidth / 2 + 12 - coinsText.padding.left);
+    const coinsText = addText(this, 0, 62, `+${coinsEarned}`, 52, { color: THEME.gold, stroke: '#b5651d' });
+    const coinIcon = this.add.image(0, 62, TEX.coin).setDisplaySize(60, 60);
+    const layoutCoins = () => {
+      const rowWidth = coinIcon.displayWidth + 12 + coinsText.width;
+      coinIcon.x = -rowWidth / 2 + coinIcon.displayWidth / 2;
+      coinsText.setOrigin(0, 0.5).setX(coinIcon.x + coinIcon.displayWidth / 2 + 12 - coinsText.padding.left);
+    };
+    layoutCoins();
 
-    const again = addButton(this, 70, 215, 'Заново', () => this.restart(), { width: 300 });
-    const home = addButton(this, -175, 215, '', () => this.toMenu(), {
+    // Удвоить монеты за рекламу — только если есть что удваивать.
+    let doubleButton = null;
+    if (coinsEarned > 0) {
+      doubleButton = addButton(this, 0, 148, `×2 монеты`, () => this.doubleCoins(), {
+        width: 380,
+        height: 80,
+        fontSize: 34,
+        variant: 'orange',
+        icon: TEX.video,
+      });
+      this.doubleButton = doubleButton;
+      this.coinsEarned = coinsEarned;
+      this.onDoubled = () => {
+        coinsText.setText(`+${coinsEarned * 2}`);
+        layoutCoins();
+        this.tweens.add({ targets: [coinsText, coinIcon], scale: { from: 1.4, to: 1 }, duration: 400, ease: 'Back.easeOut' });
+      };
+    }
+
+    const again = addButton(this, 70, 240, 'Заново', () => this.restart(), { width: 300 });
+    const home = addButton(this, -175, 240, '', () => this.toMenu(), {
       width: 150,
       variant: 'blue',
       icon: TEX.home,
     });
 
     panel.add([bg, ribbon, title, scoreLabel, scoreText, bestText, coinIcon, coinsText, again, home]);
+    if (doubleButton) panel.add(doubleButton);
     panel.setScale(0.6).setAlpha(0);
 
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });
@@ -106,6 +132,23 @@ export class GameOverScene extends Phaser.Scene {
       this.time.delayedCall(450, () => playSound('fanfare'));
       loopTween(this, { targets: bestText, scale: 1.12, duration: 500, ease: 'Sine.easeInOut' });
     }
+  }
+
+  async doubleCoins() {
+    if (this.busy) return;
+    this.busy = true;
+    this.doubleButton.disableInteractive();
+    const rewarded = await showRewarded();
+    if (!rewarded) {
+      showToast(this, 'Реклама недоступна', GAME_HEIGHT / 2 + 340);
+      this.doubleButton.setInteractive();
+      this.busy = false;
+      return;
+    }
+    setProgress(addCoins(getProgress(), this.coinsEarned));
+    this.doubleButton.setVisible(false);
+    playSound('record');
+    this.onDoubled();
   }
 
   restart() {

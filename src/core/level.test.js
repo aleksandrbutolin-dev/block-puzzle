@@ -6,6 +6,9 @@ import {
   hammerCell,
   goalsDone,
   starsFor,
+  addMoves,
+  goalsFraction,
+  EXTRA_MOVES,
 } from './level.js';
 
 const DOT = [[0, 0]];
@@ -206,5 +209,26 @@ describe('hammerCell (молоток на уровне)', () => {
   it('ход не тратится', () => {
     const state = levelWithRow('##......');
     expect(hammerCell(state, 7, 0).state.movesLeft).toBe(state.movesLeft);
+  });
+});
+
+describe('дополнительные ходы', () => {
+  const def = { rows: [], goals: { lines: 4 }, moves: 3 };
+
+  it('addMoves продлевает партию, без лимита — ничего не меняет', () => {
+    const state = { ...createLevelState(def), movesLeft: 0 };
+    expect(addMoves(state).movesLeft).toBe(EXTRA_MOVES);
+    expect(addMoves(state, 3).movesLeft).toBe(3);
+    const endless = { ...state, movesLeft: null };
+    expect(addMoves(endless)).toBe(endless);
+  });
+
+  it('goalsFraction — средняя доля по целям', () => {
+    const state = createLevelState({ rows: [], goals: { lines: 4, gems: 2 }, moves: 10 });
+    expect(goalsFraction(state)).toBe(0);
+    state.goals[0].progress = 2; // 0.5
+    state.goals[1].progress = 2; // 1
+    expect(goalsFraction(state)).toBe(0.75);
+    expect(goalsFraction({ goals: [] })).toBe(1);
   });
 });

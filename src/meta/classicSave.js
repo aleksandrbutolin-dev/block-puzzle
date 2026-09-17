@@ -5,11 +5,11 @@ import { BOARD_SIZE } from '../core/board.js';
 import { loadValue, saveValue } from '../platform/storage.js';
 
 const KEY = 'classic';
-export const CLASSIC_SAVE_VERSION = 1;
+export const CLASSIC_SAVE_VERSION = 2;
 
 // Состояние партии → запись для хранилища.
-export function packClassicGame({ board, pieces, scoreState, moves, revived }) {
-  return { version: CLASSIC_SAVE_VERSION, board, pieces, scoreState, moves, revived: Boolean(revived) };
+export function packClassicGame({ board, pieces, scoreState, moves, revives }) {
+  return { version: CLASSIC_SAVE_VERSION, board, pieces, scoreState, moves, revives: revives ?? 0 };
 }
 
 // Запись из хранилища корректна? Бракованную (старую, повреждённую) не восстанавливаем.
@@ -22,6 +22,7 @@ export function isValidClassicSave(saved) {
   if (!pieces.every((p) => p === null || (Array.isArray(p.cells) && Number.isInteger(p.color)))) return false;
   if (!scoreState || !Number.isFinite(scoreState.score)) return false;
   if (!Number.isInteger(moves) || moves < 1) return false;
+  if (!Number.isInteger(saved.revives) || saved.revives < 0) return false;
   return true;
 }
 

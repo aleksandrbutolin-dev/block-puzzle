@@ -10,7 +10,7 @@ function sample() {
     pieces: [piece, null, piece],
     scoreState: { score: 120, streak: 1, movesWithoutClear: 0 },
     moves: 5,
-    revived: false,
+    revives: 0,
   });
 }
 
@@ -29,5 +29,6 @@ describe('сохранение партии «Классики»', () => {
     expect(isValidClassicSave({ ...sample(), pieces: [piece, { cells: 'x' }, null] })).toBe(false);
     expect(isValidClassicSave({ ...sample(), scoreState: null })).toBe(false);
     expect(isValidClassicSave({ ...sample(), moves: 0 })).toBe(false);
+    expect(isValidClassicSave({ ...sample(), revives: -1 })).toBe(false);
   });
 });

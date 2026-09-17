@@ -29,6 +29,7 @@ import {
   MILESTONE_COINS,
 } from '../meta/progress.js';
 import { loadClassicGame, saveClassicGame, clearClassicGame } from '../meta/classicSave.js';
+import { getWorldRecord, submitScore } from '../platform/leaderboard.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import { TEX, addBlock } from './textures.js';
@@ -41,8 +42,9 @@ import { BoardScene, BOARD_X, BOARD_Y, BOARD_PX, CELL, cellCenter, lineCells } f
 const ASSIST_DIFFICULTY = 0.5;
 const ASSIST_REROLLS = 5;
 
-// «Продолжить?» освобождает квадрат такого размера.
+// «Продолжить?» освобождает квадрат такого размера; предлагается до MAX_REVIVES раз за партию.
 const REVIVE_AREA = 4;
+const MAX_REVIVES = 2;
 
 // «Классика»: бесконечная партия до конца ходов, рекорд, отметки, «Продолжить?».
 export class GameScene extends BoardScene {
@@ -64,13 +66,13 @@ export class GameScene extends BoardScene {
       this.pieces = saved.pieces;
       this.scoreState = saved.scoreState;
       this.moves = saved.moves;
-      this.revived = saved.revived;
+      this.revives = saved.revives;
     } else {
       this.board = createBoard();
       this.pieces = generateSet(this.board, this.rng);
       this.scoreState = createScoreState();
       this.moves = 0;
-      this.revived = false; // «Продолжить?» уже использовано в этой партии
+      this.revives = 0; // сколько раз «Продолжить?» уже использовано в этой партии
     }
     this.shownScore = this.scoreState.score;
 
@@ -80,6 +82,14 @@ export class GameScene extends BoardScene {
     this.bestText = addText(this, GAME_WIDTH / 2, 42, '', 30);
     this.scoreText = addText(this, GAME_WIDTH / 2, 126, String(this.scoreState.score), 84);
     this.updateBestText();
+    // Мировой рекорд — стимул обойти не только себя. Приходит асинхронно (лидерборд).
+    this.worldRecord = null;
+    this.beatWorld = false;
+    getWorldRecord().then((record) => {
+      if (!this.scene.isActive()) return;
+      this.worldRecord = record;
+      this.updateBestText();
+    });
 
     addSoundButton(this);
     addIconButton(this, 58, 58, TEX.home, () => this.goHome());
@@ -250,6 +260,7 @@ export class GameScene extends BoardScene {
       setProgress(updateBest(getProgress(), score)); // сразу, чтобы рекорд не пропал при закрытии вкладки
       this.updateBestText();
       if (firstTime) this.celebrateBest();
+      if (this.worldRecord && !this.beatWorld && score > this.worldRecord.score) this.celebrateWorld();
     }
     // Число «набегает» к новому значению.
     this.tweens.killTweensOf(this);
@@ -270,7 +281,16 @@ export class GameScene extends BoardScene {
   }
 
   updateBestText() {
-    this.bestText.setText(`Рекорд: ${this.best}`);
+    const world = this.worldRecord;
+    const worldPart = world && world.score > this.best ? `   ·   Мир: ${world.score}` : '';
+    this.bestText.setText(`Рекорд: ${this.best}${worldPart}`);
+  }
+
+  // Обошёл лучший результат в мире — главное событие партии.
+  celebrateWorld() {
+    this.beatWorld = true;
+    this.updateBestText();
+    this.showBanner('Мировой рекорд!', 84);
   }
 
   // Прежний рекорд побит в этой партии — надпись вспыхивает золотом.
@@ -341,17 +361,27 @@ export class GameScene extends BoardScene {
     });
   }
 
+  // Крупная золотая надпись над полем со звёздами и фанфарами.
+  showBanner(text, size = 120) {
+    this.showMilestone(text, 0, size);
+  }
+
   // «1000!» над полем: крупная золотая надпись, монеты, звёзды.
-  showMilestone(value, coins) {
+  showMilestone(value, coins, size = 120) {
     const cx = GAME_WIDTH / 2;
     const cy = BOARD_Y + BOARD_PX / 2 - 60;
-    const title = addText(this, 0, 0, `${value}!`, 120, { color: THEME.gold, stroke: '#8a4a0c' });
+    const text = typeof value === 'number' ? `${value}!` : value;
+    const title = addText(this, 0, 0, text, size, { color: THEME.gold, stroke: '#8a4a0c' });
     const coinIcon = this.add.image(0, 0, TEX.coin).setDisplaySize(64, 64);
     const coinText = addText(this, 0, 0, `+${coins}`, 52, { color: THEME.gold, stroke: '#8a4a0c' });
     const rowWidth = coinIcon.displayWidth + 10 + coinText.width - coinText.padding.left * 2;
     coinIcon.setPosition(-rowWidth / 2 + coinIcon.displayWidth / 2, 95);
     coinText.setPosition(coinIcon.x + coinIcon.displayWidth / 2 + 10 + (coinText.width - coinText.padding.left * 2) / 2, 95);
 
+    if (coins <= 0) {
+      coinIcon.setVisible(false);
+      coinText.setVisible(false);
+    }
     const banner = this.add.container(cx, cy, [title, coinIcon, coinText]).setDepth(30);
     banner.setScale(0).setAngle(-8);
     this.tweens.chain({
@@ -380,7 +410,7 @@ export class GameScene extends BoardScene {
 
     // Пауза, чтобы игрок увидел последний ход.
     this.time.delayedCall(800, () => {
-      if (this.revived) {
+      if (this.revives >= MAX_REVIVES) {
         this.finishGame();
         return;
       }
@@ -394,6 +424,7 @@ export class GameScene extends BoardScene {
   finishGame() {
     clearClassicGame();
     const score = this.scoreState.score;
+    submitScore(score);
     const ended = recordGameEnd(getProgress(), { score, moves: this.moves });
     setProgress(ended.progress);
     this.scene.launch('GameOver', {
@@ -423,7 +454,7 @@ export class GameScene extends BoardScene {
 
   // Вторая попытка: самый заполненный квадрат 4×4 лопается, фигуры — новые.
   revive() {
-    this.revived = true;
+    this.revives += 1;
     this.dimBoard(false);
 
     const { row, col } = densestArea(this.board, REVIVE_AREA);
