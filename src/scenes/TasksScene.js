@@ -5,7 +5,7 @@ import { TEX, addBlock } from './textures.js';
 import { addBackdrop } from './backdrop.js';
 import { addText, addButton, addIconButton, addSoundButton, addCoinCounter, flyCoins } from './ui.js';
 import { getProgress, setProgress, checkInToday } from '../meta/store.js';
-import { claimTask, isTaskDone } from '../meta/progress.js';
+import { claimTask, isTaskDone, dailyBonusReady, claimDailyBonus, DAILY_BONUS } from '../meta/progress.js';
 import { taskText, timeUntilTomorrow } from '../meta/texts.js';
 import { loopTween, reducedMotion } from './motion.js';
 
@@ -13,10 +13,11 @@ import { loopTween, reducedMotion } from './motion.js';
 const TASK_COLORS = { lines: 4, pieces: 1, games: 3, combo: 2, streak: 6, score: 5, clearBoard: 0 };
 
 const CARD_W = 640;
-const CARD_H = 200;
+const CARD_H = 180;
 const CARD_X = (GAME_WIDTH - CARD_W) / 2;
-const FIRST_CARD_Y = 330;
-const CARD_GAP = 36;
+const FIRST_CARD_Y = 316;
+const CARD_GAP = 24;
+const BONUS_Y = 990; // полоса «бонус за все задания»
 
 export class TasksScene extends Phaser.Scene {
   constructor() {
@@ -57,6 +58,58 @@ export class TasksScene extends Phaser.Scene {
     this.cards = getProgress().daily.tasks.map((task, i) =>
       this.createCard(task, FIRST_CARD_Y + i * (CARD_H + CARD_GAP)),
     );
+    this.cards.push(this.createBonusStrip());
+  }
+
+  // Полоса под карточками: бонус за все три задания дня.
+  createBonusStrip() {
+    const progress = getProgress();
+    const tasks = progress.daily.tasks;
+    const claimedCount = tasks.filter((t) => t.claimed).length;
+    const ready = dailyBonusReady(progress);
+    const got = progress.daily.bonusClaimed;
+    const strip = this.add.container(CARD_X, BONUS_Y);
+    const h = 96;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x3f2266, 0.32);
+    bg.fillRoundedRect(0, 4, CARD_W, h, 30);
+    bg.fillStyle(ready ? 0xffc93a : 0xffd9a0, 1);
+    bg.fillRoundedRect(0, 0, CARD_W, h, 30);
+    bg.fillStyle(got ? 0x2a3566 : 0x1e2958, 1);
+    bg.fillRoundedRect(6, 6, CARD_W - 12, h - 12, 26);
+    strip.add(bg);
+
+    const chest = this.add.image(58, h / 2, TEX.chest(got)).setDisplaySize(64, 64);
+    const label = addText(this, 106, h / 2, `Все задания: +${DAILY_BONUS}`, 32, { color: THEME.gold }).setOrigin(0, 0.5);
+    label.x -= label.padding.left;
+    strip.add([chest, label]);
+
+    const rightX = CARD_W - 105;
+    if (got) {
+      strip.add(addText(this, rightX, h / 2, 'Получено', 30, { color: THEME.green }));
+    } else if (ready) {
+      const button = addButton(this, rightX, h / 2, 'Забрать', () => this.claimBonus(strip), {
+        width: 170,
+        height: 66,
+        fontSize: 30,
+        variant: 'orange',
+      });
+      strip.add(button);
+      loopTween(this, { targets: button, scale: 1.07, duration: 450 });
+    } else {
+      strip.add(addText(this, rightX, h / 2, `${claimedCount} из ${tasks.length}`, 32, { color: THEME.textMuted }));
+    }
+    return strip;
+  }
+
+  claimBonus(strip) {
+    const { progress, reward } = claimDailyBonus(getProgress());
+    if (reward === 0) return;
+    setProgress(progress);
+    flyCoins(this, strip.x + 58, strip.y + 48, this.coins, 12);
+    this.coins.setValue(progress.coins, true);
+    this.time.delayedCall(350, () => this.drawCards());
   }
 
   createCard(task, y) {
@@ -76,7 +129,7 @@ export class TasksScene extends Phaser.Scene {
     if (task.claimed) icon.setAlpha(0.5);
     card.add(icon);
 
-    const title = addText(this, 140, 58, taskText(task), 32, {
+    const title = addText(this, 140, 52, taskText(task), 32, {
       wordWrap: { width: 300 },
       align: 'left',
     }).setOrigin(0, 0.5);
@@ -85,7 +138,7 @@ export class TasksScene extends Phaser.Scene {
 
     // Полоса прогресса
     const barX = 140;
-    const barY = 130;
+    const barY = 120;
     const barW = 290;
     const barH = 34;
     const bar = this.add.graphics();
@@ -103,14 +156,14 @@ export class TasksScene extends Phaser.Scene {
 
     // Награда и кнопка
     const rightX = CARD_W - 105;
-    const coin = this.add.image(rightX - 36, 52, TEX.coin).setDisplaySize(48, 48);
-    const reward = addText(this, rightX + 28, 52, `${task.reward}`, 36, { color: THEME.gold });
+    const coin = this.add.image(rightX - 36, 46, TEX.coin).setDisplaySize(48, 48);
+    const reward = addText(this, rightX + 28, 46, `${task.reward}`, 36, { color: THEME.gold });
     card.add([coin, reward]);
 
     if (task.claimed) {
-      card.add(addText(this, rightX, 132, 'Получено', 30, { color: THEME.green }));
+      card.add(addText(this, rightX, 122, 'Получено', 30, { color: THEME.green }));
     } else if (done) {
-      const button = addButton(this, rightX, 128, 'Забрать', () => this.claim(task.id, card), {
+      const button = addButton(this, rightX, 120, 'Забрать', () => this.claim(task.id, card), {
         width: 170,
         height: 66,
         fontSize: 30,
@@ -119,7 +172,7 @@ export class TasksScene extends Phaser.Scene {
       card.add(button);
       loopTween(this, { targets: button, scale: 1.07, duration: 450 });
     } else {
-      card.add(addText(this, rightX, 132, `${Math.floor(fill * 100)}%`, 32, { color: THEME.textMuted }));
+      card.add(addText(this, rightX, 122, `${Math.floor(fill * 100)}%`, 32, { color: THEME.textMuted }));
     }
 
     card.setScale(0.9).setAlpha(0);

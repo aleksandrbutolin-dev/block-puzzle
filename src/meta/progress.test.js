@@ -10,6 +10,14 @@ import {
   daysBetween,
   generateDailyTasks,
   checkIn,
+  streakReward,
+  nextStreakReward,
+  canRestoreStreak,
+  restoreStreak,
+  dailyBonusReady,
+  claimDailyBonus,
+  DAILY_BONUS,
+  recordLevelEnd,
   recordMove,
   recordGameEnd,
   updateBest,
@@ -491,5 +499,84 @@ describe('бустеры', () => {
   it('старое сохранение без бустеров получает стартовые', () => {
     const p = migrateProgress({ coins: 5 });
     expect(boosterCount(p, 'hammer')).toBe(1);
+  });
+});
+
+describe('возврат серии', () => {
+  const day = (d) => new Date(2026, 8, d, 12);
+
+  it('пропуск дня после серии из 2+ дней запоминается на сегодня', () => {
+    let p = checkIn(createProgress(), day(1)).progress;
+    p = checkIn(p, day(2)).progress;
+    p = checkIn(p, day(3)).progress;
+    const result = checkIn(p, day(5));
+    expect(result.lostStreak).toBe(3);
+    expect(result.streakDay).toBe(1);
+    expect(canRestoreStreak(result.progress, day(5))).toBe(true);
+    expect(canRestoreStreak(result.progress, day(6))).toBe(false);
+  });
+
+  it('серия из 1 дня не считается потерянной', () => {
+    const p = checkIn(createProgress(), day(1)).progress;
+    const result = checkIn(p, day(3));
+    expect(result.lostStreak).toBe(0);
+    expect(canRestoreStreak(result.progress, day(3))).toBe(false);
+  });
+
+  it('восстановление продолжает серию и доплачивает разницу награды', () => {
+    let p = checkIn(createProgress(), day(1)).progress;
+    p = checkIn(p, day(2)).progress;
+    p = checkIn(p, day(3)).progress;
+    const broken = checkIn(p, day(5)).progress;
+    const coinsBefore = broken.coins;
+    const restored = restoreStreak(broken, day(5));
+    expect(restored.streakDay).toBe(4);
+    expect(restored.reward).toBe(streakReward(4) - streakReward(1));
+    expect(restored.progress.coins).toBe(coinsBefore + restored.reward);
+    expect(restored.progress.streak.lost).toBeNull();
+    // Повторно вернуть нельзя, на следующий день серия продолжается с 5-го.
+    expect(restoreStreak(restored.progress, day(5)).reward).toBe(0);
+    expect(checkIn(restored.progress, day(6)).streakDay).toBe(5);
+  });
+
+  it('nextStreakReward — награда за завтра', () => {
+    const p = checkIn(createProgress(), day(1)).progress;
+    expect(nextStreakReward(p)).toBe(STREAK_REWARDS[1]);
+  });
+});
+
+describe('бонус за все задания дня', () => {
+  it('готов только когда все задания забраны, выдаётся один раз', () => {
+    let p = checkIn(createProgress(), new Date(2026, 8, 1, 12)).progress;
+    expect(dailyBonusReady(p)).toBe(false);
+    p.daily.tasks = p.daily.tasks.map((t) => ({ ...t, progress: t.target, claimed: true }));
+    expect(dailyBonusReady(p)).toBe(true);
+    const coins = p.coins;
+    const claimed = claimDailyBonus(p);
+    expect(claimed.reward).toBe(DAILY_BONUS);
+    expect(claimed.progress.coins).toBe(coins + DAILY_BONUS);
+    expect(dailyBonusReady(claimed.progress)).toBe(false);
+    expect(claimDailyBonus(claimed.progress).reward).toBe(0);
+  });
+
+  it('новый день сбрасывает бонус', () => {
+    let p = checkIn(createProgress(), new Date(2026, 8, 1, 12)).progress;
+    p.daily.tasks = p.daily.tasks.map((t) => ({ ...t, progress: t.target, claimed: true }));
+    p = claimDailyBonus(p).progress;
+    const next = checkIn(p, new Date(2026, 8, 2, 12)).progress;
+    expect(next.daily.bonusClaimed).toBe(false);
+  });
+});
+
+describe('recordLevelEnd', () => {
+  it('уровень — партия для задания «сыграй партии», без монет и рекорда', () => {
+    const p = createProgress();
+    p.daily.tasks = [{ id: 'x:games', type: 'games', target: 2, reward: 20, progress: 0, claimed: false }];
+    const one = recordLevelEnd(p);
+    expect(one.progress.stats.games).toBe(1);
+    expect(one.progress.coins).toBe(0);
+    expect(one.completed).toHaveLength(0);
+    const two = recordLevelEnd(one.progress);
+    expect(two.completed).toHaveLength(1);
   });
 });

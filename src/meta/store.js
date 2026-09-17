@@ -6,7 +6,7 @@ import { migrateProgress, checkIn } from './progress.js';
 
 const KEY = 'progress';
 let current = null;
-let lastCheckIn = { reward: 0, streakDay: 0 };
+let lastCheckIn = { reward: 0, streakDay: 0, lostStreak: 0 };
 
 export function getProgress() {
   if (!current) {
@@ -28,13 +28,13 @@ export function setProgress(next) {
 export function checkInToday(now = new Date()) {
   const result = checkIn(getProgress(), now);
   setProgress(result.progress);
-  lastCheckIn = { reward: result.reward, streakDay: result.streakDay };
+  lastCheckIn = { reward: result.reward, streakDay: result.streakDay, lostStreak: result.lostStreak };
   return lastCheckIn;
 }
 
 // Награда за вход, которую ещё не показали игроку (для окна в меню).
 export function takeCheckInReward() {
   const result = lastCheckIn;
-  lastCheckIn = { reward: 0, streakDay: result.streakDay };
+  lastCheckIn = { reward: 0, streakDay: result.streakDay, lostStreak: 0 };
   return result;
 }

@@ -33,6 +33,7 @@ export const TASK_TYPES = {
   clearBoard: { metric: 'clearBoards', mode: 'sum', options: [[1, 50]] },
 };
 export const TASKS_PER_DAY = 3;
+export const DAILY_BONUS = 100; // за все задания дня
 
 // ---------- Состояние ----------
 
@@ -43,7 +44,7 @@ export function createProgress() {
     best: 0,
     tutorialDone: false,
     streak: { count: 0, lastDay: null },
-    daily: { day: null, tasks: [] },
+    daily: { day: null, tasks: [], bonusClaimed: false },
     skins: { owned: ['toys'], selected: 'toys' },
     levels: { stars: {}, chapters: [] }, // звёзды по уровням и полученные награды за главы
     boosters: { hammer: 1, swap: 1 }, // по одному на пробу
@@ -133,18 +134,63 @@ export function checkIn(progress, now = new Date()) {
   const today = dayKey(now);
 
   if (next.daily.day !== today) {
-    next.daily = { day: today, tasks: generateDailyTasks(today) };
+    next.daily = { day: today, tasks: generateDailyTasks(today), bonusClaimed: false };
   }
 
   const { lastDay } = next.streak;
-  if (lastDay === today) return { progress: next, reward: 0, streakDay: next.streak.count };
+  if (lastDay === today) return { progress: next, reward: 0, streakDay: next.streak.count, lostStreak: 0 };
 
   const gap = lastDay ? daysBetween(lastDay, today) : Infinity;
-  next.streak.count = gap === 1 ? next.streak.count + 1 : 1;
+  const kept = gap === 1;
+  // Серия от 2 дней, прерванная пропуском, запоминается: сегодня её ещё можно вернуть.
+  const lostStreak = !kept && next.streak.count >= 2 ? next.streak.count : 0;
+  next.streak.count = kept ? next.streak.count + 1 : 1;
   next.streak.lastDay = today;
-  const reward = STREAK_REWARDS[(next.streak.count - 1) % STREAK_REWARDS.length];
+  next.streak.lost = lostStreak ? { count: lostStreak, day: today } : null;
+  const reward = streakReward(next.streak.count);
   next.coins += reward;
-  return { progress: next, reward, streakDay: next.streak.count };
+  return { progress: next, reward, streakDay: next.streak.count, lostStreak };
+}
+
+export function streakReward(day) {
+  return STREAK_REWARDS[(day - 1) % STREAK_REWARDS.length];
+}
+
+// Награда за завтрашний вход — чтобы было видно, зачем возвращаться.
+export function nextStreakReward(progress) {
+  return streakReward(progress.streak.count + 1);
+}
+
+// Можно ли вернуть прерванную серию (только в день пропуска).
+export function canRestoreStreak(progress, now = new Date()) {
+  const lost = progress.streak.lost;
+  return Boolean(lost && lost.day === dayKey(now));
+}
+
+// Вернуть серию (за рекламу): день считается продолжением, доплачивается разница награды.
+export function restoreStreak(progress, now = new Date()) {
+  if (!canRestoreStreak(progress, now)) return { progress, reward: 0, streakDay: progress.streak.count };
+  const next = clone(progress);
+  const day = next.streak.lost.count + 1;
+  const reward = streakReward(day) - streakReward(1);
+  next.streak.count = day;
+  next.streak.lost = null;
+  next.coins += reward;
+  return { progress: next, reward, streakDay: day };
+}
+
+// Все задания дня забраны — можно получить бонус, один раз в день.
+export function dailyBonusReady(progress) {
+  const tasks = progress.daily.tasks;
+  return tasks.length > 0 && tasks.every((t) => t.claimed) && !progress.daily.bonusClaimed;
+}
+
+export function claimDailyBonus(progress) {
+  if (!dailyBonusReady(progress)) return { progress, reward: 0 };
+  const next = clone(progress);
+  next.daily.bonusClaimed = true;
+  next.coins += DAILY_BONUS;
+  return { progress: next, reward: DAILY_BONUS };
 }
 
 function applyMetrics(next, values) {
@@ -206,6 +252,14 @@ export function recordGameEnd(progress, { score, moves = Infinity }) {
   next.stats.games += 1;
   const completed = applyMetrics(next, { games: 1, score });
   return { progress: next, coins, isNewBest, completed };
+}
+
+// Конец уровня «Приключения»: считается партией для заданий; монеты — за звёзды, не за очки.
+export function recordLevelEnd(progress) {
+  const next = clone(progress);
+  next.stats.games += 1;
+  const completed = applyMetrics(next, { games: 1 });
+  return { progress: next, completed };
 }
 
 // Рекорд во время партии — чтобы не потерять его при закрытии вкладки.

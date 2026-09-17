@@ -6,12 +6,27 @@ import { addBackdrop } from './backdrop.js';
 import {
   addText,
   addButton,
+  addTextButton,
   addSoundButton,
   addCoinCounter,
   flyCoins,
+  showToast,
 } from './ui.js';
-import { getProgress, takeCheckInReward } from '../meta/store.js';
-import { STREAK_REWARDS, isTaskDone, currentLevel, totalStars } from '../meta/progress.js';
+import { getProgress, setProgress, takeCheckInReward } from '../meta/store.js';
+import {
+  STREAK_REWARDS,
+  isTaskDone,
+  currentLevel,
+  totalStars,
+  nextStreakReward,
+  canRestoreStreak,
+  restoreStreak,
+  dailyBonusReady,
+  DAILY_BONUS,
+} from '../meta/progress.js';
+import { loadClassicGame } from '../meta/classicSave.js';
+import { plural } from '../meta/texts.js';
+import { showRewarded } from '../platform/ads.js';
 import { LEVELS_TOTAL } from '../core/levels.js';
 import { playSound } from '../platform/audio.js';
 import { loopTween, reducedMotion } from './motion.js';
@@ -53,18 +68,21 @@ export class MenuScene extends Phaser.Scene {
     });
     loopTween(this, { targets: adventure, scale: 1.03, duration: 900, ease: 'Sine.easeInOut' });
 
+    // Незаконченная партия — карточка зовёт вернуться к ней.
+    const saved = loadClassicGame();
     this.modeCard(654, {
       variant: 'blue',
       title: 'Классика',
       desc: 'Бесконечная игра на рекорд',
-      meta: `Рекорд: ${progress.best}`,
+      meta: saved
+        ? `Продолжить партию: ${saved.scoreState.score} ${plural(saved.scoreState.score, ['очко', 'очка', 'очков'])}`
+        : `Рекорд: ${progress.best}`,
       icon: (x, y) => addBlock(this, x, y, 58, 5),
       onTap: () => this.scene.start('Game'),
     });
 
-    this.createStreakRow(progress.streak.count);
+    this.createStreakRow();
 
-    const readyTasks = progress.daily.tasks.filter((t) => isTaskDone(t) && !t.claimed).length;
     addButton(this, GAME_WIDTH / 2 - 165, 1090, 'Задания', () => this.scene.start('Tasks'), {
       width: 300,
       height: 110,
@@ -72,10 +90,7 @@ export class MenuScene extends Phaser.Scene {
       fontSize: 36,
       icon: TEX.tasks,
     });
-    // Готовые награды показываем подписью под кнопкой, а не значком поверх неё.
-    if (readyTasks > 0) {
-      addText(this, GAME_WIDTH / 2 - 165, 1172, `Награды: ${readyTasks}`, 30, { color: THEME.gold });
-    }
+    this.createTasksLine(progress);
 
     addButton(this, GAME_WIDTH / 2 + 165, 1090, 'Коллекция', () => this.scene.start('Collection'), {
       width: 300,
@@ -88,10 +103,33 @@ export class MenuScene extends Phaser.Scene {
     const checkIn = takeCheckInReward();
     if (checkIn.reward > 0) {
       this.coins.setValue(progress.coins - checkIn.reward);
-      this.time.delayedCall(400, () => this.showDailyReward(checkIn));
+      // Серия прервалась — сначала предложим вернуть её, потом покажем награду за вход.
+      if (checkIn.lostStreak > 0 && canRestoreStreak(progress)) {
+        this.time.delayedCall(400, () => this.showStreakRescue(checkIn));
+      } else {
+        this.time.delayedCall(400, () => this.showDailyReward(checkIn));
+      }
     } else {
       this.coins.setValue(progress.coins);
     }
+  }
+
+  // Под кнопкой «Задания»: сколько готово, есть ли награды или бонус за все три.
+  createTasksLine(progress) {
+    const tasks = progress.daily.tasks;
+    const ready = tasks.filter((t) => isTaskDone(t) && !t.claimed).length;
+    const done = tasks.filter((t) => isTaskDone(t)).length;
+    let text = `Готово: ${done} из ${tasks.length}`;
+    let color = THEME.textMuted;
+    if (dailyBonusReady(progress)) {
+      text = `Бонус +${DAILY_BONUS} ждёт!`;
+      color = THEME.gold;
+    } else if (ready > 0) {
+      text = `Награды: ${ready}`;
+      color = THEME.gold;
+    }
+    const label = addText(this, GAME_WIDTH / 2 - 165, 1172, text, 30, { color });
+    if (color === THEME.gold) loopTween(this, { targets: label, scale: 1.06, duration: 600 });
   }
 
   createLogo() {
@@ -120,14 +158,27 @@ export class MenuScene extends Phaser.Scene {
   }
 
   // Ряд из 7 дней серии: пройденные — золотые, сегодняшний — крупнее.
-  createStreakRow(streakCount) {
+  // Перерисовывается после возврата серии.
+  createStreakRow() {
+    const progress = getProgress();
+    const streakCount = progress.streak.count;
+    this.streakRow?.destroy();
+    this.streakRow = this.add.container(0, 0);
+    const row = this.streakRow;
     const y = 915;
     const panel = this.add.graphics();
+    row.add(panel);
     panel.fillStyle(0x1e2958, 0.88);
     panel.fillRoundedRect(30, y - 115, GAME_WIDTH - 60, 225, 36);
     panel.lineStyle(5, 0xffd9a0, 1);
     panel.strokeRoundedRect(30, y - 115, GAME_WIDTH - 60, 225, 36);
-    addText(this, GAME_WIDTH / 2, y - 72, `Серия входов: ${streakCount} дн.`, 36);
+    row.add(addText(this, GAME_WIDTH / 2, y - 72, `Серия входов: ${streakCount} дн.`, 36));
+    // Зачем возвращаться завтра — видно сразу.
+    row.add(
+      addText(this, GAME_WIDTH / 2, y - 30, `Завтра: +${nextStreakReward(progress)} монет`, 26, {
+        color: THEME.gold,
+      }),
+    );
 
     const today = ((Math.max(streakCount, 1) - 1) % STREAK_REWARDS.length) + 1;
     const step = (GAME_WIDTH - 110) / STREAK_REWARDS.length;
@@ -142,11 +193,14 @@ export class MenuScene extends Phaser.Scene {
       circle.fillCircle(x, y + 10, r);
       circle.lineStyle(4, isToday ? 0xffffff : done ? 0xd98010 : 0x5a6ab0, 1);
       circle.strokeCircle(x, y + 10, r);
-      addText(this, x, y + 10, String(reward), isToday ? 30 : 26, {
-        color: done ? '#7a3a00' : '#c9d2ff',
-        stroke: null,
-      });
-      addText(this, x, y + 74, `${day}`, 30, { color: done ? THEME.gold : '#8f9bd6', stroke: null });
+      row.add(circle);
+      row.add(
+        addText(this, x, y + 10, String(reward), isToday ? 30 : 26, {
+          color: done ? '#7a3a00' : '#c9d2ff',
+          stroke: null,
+        }),
+      );
+      row.add(addText(this, x, y + 74, `${day}`, 30, { color: done ? THEME.gold : '#8f9bd6', stroke: null }));
       if (isToday) {
         loopTween(this, { targets: circle, alpha: 0.75, duration: 600 });
       }
@@ -201,6 +255,74 @@ export class MenuScene extends Phaser.Scene {
       this.tweens.add({ targets: card, scale: 0.97, duration: 90, yoyo: true, onComplete: onTap });
     });
     return card;
+  }
+
+  // Окно «Серия прервалась»: вернуть серию за рекламу или начать заново.
+  showStreakRescue(checkIn) {
+    const progress = getProgress();
+    const lost = progress.streak.lost.count;
+    const bonus = restoreStreak(progress).reward;
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+    const layer = this.add.container(0, 0).setDepth(50);
+    const shade = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, THEME.overlay, 0.65).setInteractive();
+    layer.add(shade);
+
+    const panel = this.add.container(cx, cy);
+    const bg = this.add.graphics();
+    bg.fillStyle(0xe8cfe0, 1);
+    bg.fillRoundedRect(-270, -252, 540, 540, 48);
+    bg.fillStyle(THEME.panel, 1);
+    bg.fillRoundedRect(-270, -260, 540, 540, 48);
+    const ribbon = this.add.graphics();
+    ribbon.fillStyle(0xc9447f, 1);
+    ribbon.fillRoundedRect(-240, -302, 480, 100, 50);
+    ribbon.fillStyle(0xff6fae, 1);
+    ribbon.fillRoundedRect(-240, -310, 480, 96, 48);
+    const title = addText(this, 0, -262, 'Серия прервалась', 44, { stroke: '#8a2358' });
+    const text = addText(
+      this,
+      0,
+      -140,
+      `У тебя была серия ${lost} дн.\nВернуть её и продолжить\nс ${lost + 1}-го дня?`,
+      32,
+      { color: THEME.panelText, stroke: null, lineSpacing: 6 },
+    );
+    const coin = this.add.image(-60, 0, TEX.coin).setDisplaySize(90, 90);
+    const amount = addText(this, 30, 0, `+${bonus}`, 56, { color: THEME.gold, stroke: '#b5651d' });
+
+    let busy = false;
+    const finish = () => {
+      this.tweens.add({ targets: layer, alpha: 0, duration: 250, onComplete: () => layer.destroy() });
+      this.time.delayedCall(300, () => this.showDailyReward({ ...checkIn, streakDay: getProgress().streak.count }));
+    };
+    const watch = addButton(this, 0, 110, 'Вернуть', async () => {
+      if (busy) return;
+      busy = true;
+      const rewarded = await showRewarded();
+      if (!rewarded) {
+        showToast(this, 'Реклама недоступна', cy + 330);
+        busy = false;
+        return;
+      }
+      const restored = restoreStreak(getProgress());
+      setProgress(restored.progress);
+      checkIn = { ...checkIn, reward: checkIn.reward + restored.reward };
+      this.createStreakRow();
+      finish();
+    }, { width: 380, height: 104, fontSize: 42, icon: TEX.video });
+    const skip = addTextButton(this, 0, 205, 'Начать заново', 32, () => {
+      if (busy) return;
+      busy = true;
+      finish();
+    });
+
+    panel.add([bg, ribbon, title, text, coin, amount, watch, skip.text, skip.zone]);
+    layer.add(panel);
+    panel.setScale(0.5).setAlpha(0);
+    shade.setAlpha(0);
+    this.tweens.add({ targets: shade, alpha: 1, duration: 250 });
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 400, ease: 'Back.easeOut' });
   }
 
   // Окно «Награда за вход».

@@ -16,7 +16,7 @@ export class LevelResultScene extends Phaser.Scene {
     super('LevelResult');
   }
 
-  create({ levelId, status, stars, score, hasNext }) {
+  create({ levelId, status, stars, score, hasNext, tasksDone = [] }) {
     const won = status === 'won';
     const reward = won ? completeLevel(getProgress(), levelId, stars) : { coins: 0 };
     if (won) setProgress(reward.progress);
@@ -97,6 +97,21 @@ export class LevelResultScene extends Phaser.Scene {
       const toMap = addTextButton(this, 0, 306, 'К карте', 32, () => this.toMap());
       panel.add([toMap.text, toMap.zone]);
     }
+
+    // Задания, выполненные этим уровнем, — плашка над окном.
+    tasksDone.forEach((task, i) => {
+      const banner = addText(this, cx, 200 - i * 62, `Задание выполнено! +${task.reward}`, 38, {
+        color: THEME.gold,
+      }).setScale(0);
+      this.tweens.add({
+        targets: banner,
+        scale: 1,
+        duration: 400,
+        delay: 700 + i * 200,
+        ease: 'Back.easeOut',
+        onStart: () => playSound('record'),
+      });
+    });
 
     panel.setScale(0.6).setAlpha(0);
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });

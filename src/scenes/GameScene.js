@@ -28,6 +28,7 @@ import {
   addCoins,
   MILESTONE_COINS,
 } from '../meta/progress.js';
+import { loadClassicGame, saveClassicGame, clearClassicGame } from '../meta/classicSave.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import { TEX, addBlock } from './textures.js';
@@ -51,22 +52,33 @@ export class GameScene extends BoardScene {
 
   create() {
     this.rng = createRng();
-    this.board = createBoard();
-    this.pieces = generateSet(this.board, this.rng);
     this.isOver = false;
-    this.revived = false; // «Продолжить?» уже использовано в этой партии
-    this.moves = 0;
     this.assist = needsAssist(getProgress());
-    this.scoreState = createScoreState();
     this.bestAtStart = getProgress().best;
     this.best = this.bestAtStart;
-    this.shownScore = 0;
+
+    // Незаконченная партия продолжается с того же места (кроме первой партии с обучением).
+    const saved = getProgress().tutorialDone ? loadClassicGame() : null;
+    if (saved) {
+      this.board = saved.board;
+      this.pieces = saved.pieces;
+      this.scoreState = saved.scoreState;
+      this.moves = saved.moves;
+      this.revived = saved.revived;
+    } else {
+      this.board = createBoard();
+      this.pieces = generateSet(this.board, this.rng);
+      this.scoreState = createScoreState();
+      this.moves = 0;
+      this.revived = false; // «Продолжить?» уже использовано в этой партии
+    }
+    this.shownScore = this.scoreState.score;
 
     addBackdrop(this);
     this.buildBoard();
 
     this.bestText = addText(this, GAME_WIDTH / 2, 42, '', 30);
-    this.scoreText = addText(this, GAME_WIDTH / 2, 126, '0', 84);
+    this.scoreText = addText(this, GAME_WIDTH / 2, 126, String(this.scoreState.score), 84);
     this.updateBestText();
 
     addSoundButton(this);
@@ -79,6 +91,9 @@ export class GameScene extends BoardScene {
 
     this.tutorial = getProgress().tutorialDone ? null : new Tutorial(this);
     if (this.tutorial) this.setBoostersVisible(false);
+
+    // Вкладку закрыли на последнем ходу — сразу показываем итог.
+    if (saved && !hasAnyMove(this.board, this.pieces)) this.endGame();
   }
 
   // ---------- Правила «Классики» ----------
@@ -113,13 +128,21 @@ export class GameScene extends BoardScene {
     this.drawBoard();
     this.popBlock(row, col, color, 0, true);
     playSound('pop', { lines: 1, streak: 1 });
+    this.saveGame();
   }
 
   useSwap() {
     this.pieces = generateSet(this.board, this.rng);
     this.drawTray([0, 1, 2]);
     playSound('deal');
+    this.saveGame();
     if (!hasAnyMove(this.board, this.pieces)) this.endGame();
+  }
+
+  // Партия сохраняется после каждого изменения: закрыл вкладку — продолжишь с того же места.
+  saveGame() {
+    if (this.tutorial || this.isOver) return;
+    saveClassicGame(this);
   }
 
   // Выход в меню посреди партии: партия не засчитывается.
@@ -177,6 +200,8 @@ export class GameScene extends BoardScene {
 
     if (!hasAnyMove(this.board, this.pieces)) {
       this.endGame();
+    } else {
+      this.saveGame();
     }
   }
 
@@ -347,36 +372,6 @@ export class GameScene extends BoardScene {
     this.time.delayedCall(150, () => playSound('fanfare'));
   }
 
-  // Плашка «Задание выполнено!» сверху. Подробный экран заданий — в меню.
-  showTaskDone(task, index) {
-    const y = 250 + index * 90;
-    const label = addText(this, GAME_WIDTH / 2, y, `Задание выполнено! +${task.reward}`, 38, {
-      color: THEME.gold,
-    }).setDepth(25);
-    const bg = this.add
-      .rectangle(GAME_WIDTH / 2, y, label.width + 20, 78, 0x1e2958, 0.92)
-      .setStrokeStyle(4, 0xffd84a)
-      .setDepth(24);
-    const group = [bg, label];
-    for (const item of group) item.setScale(0);
-    this.time.delayedCall(250 + index * 200, () => playSound('record'));
-    this.tweens.add({
-      targets: group,
-      scale: 1,
-      duration: 350,
-      delay: 250 + index * 200,
-      ease: 'Back.easeOut',
-    });
-    this.tweens.add({
-      targets: group,
-      alpha: 0,
-      y: y - 40,
-      duration: 400,
-      delay: 2200 + index * 200,
-      onComplete: () => group.forEach((item) => item.destroy()),
-    });
-  }
-
   // Ходов нет: поле «засыпает», затем — «Продолжить?» (один раз за партию) или итог.
   endGame() {
     this.isOver = true;
@@ -397,6 +392,7 @@ export class GameScene extends BoardScene {
   }
 
   finishGame() {
+    clearClassicGame();
     const score = this.scoreState.score;
     const ended = recordGameEnd(getProgress(), { score, moves: this.moves });
     setProgress(ended.progress);
@@ -448,6 +444,7 @@ export class GameScene extends BoardScene {
     this.time.delayedCall(450, () => {
       this.isOver = !hasAnyMove(this.board, this.pieces);
       if (this.isOver) this.endGame();
+      else this.saveGame();
     });
   }
 

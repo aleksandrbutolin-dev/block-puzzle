@@ -84,6 +84,30 @@ export class BoardScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (pointer) => this.endDrag(pointer));
   }
 
+  // Плашка «Задание выполнено!» сверху. Подробный экран заданий — в меню.
+  showTaskDone(task, index) {
+    const y = 250 + index * 90;
+    const label = addText(this, GAME_WIDTH / 2, y, `Задание выполнено! +${task.reward}`, 38, {
+      color: THEME.gold,
+    }).setDepth(DEPTH.banner);
+    const bg = this.add
+      .rectangle(GAME_WIDTH / 2, y, label.width + 20, 78, 0x1e2958, 0.92)
+      .setStrokeStyle(4, 0xffd84a)
+      .setDepth(DEPTH.banner - 1);
+    const group = [bg, label];
+    for (const item of group) item.setScale(0);
+    this.time.delayedCall(250 + index * 200, () => playSound('record'));
+    this.tweens.add({ targets: group, scale: 1, duration: 350, delay: 250 + index * 200, ease: 'Back.easeOut' });
+    this.tweens.add({
+      targets: group,
+      alpha: 0,
+      y: y - 40,
+      duration: 400,
+      delay: 2200 + index * 200,
+      onComplete: () => group.forEach((item) => item.destroy()),
+    });
+  }
+
   // ---------- Бустеры ----------
 
   // Полоса с молотком и обменом. Наследник задаёт, что они делают:

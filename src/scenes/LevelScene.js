@@ -12,8 +12,8 @@ import {
   hammerCell,
 } from '../core/level.js';
 import { getLevel, LEVELS_TOTAL } from '../core/levels.js';
-import { getProgress } from '../meta/store.js';
-import { currentLevel } from '../meta/progress.js';
+import { getProgress, setProgress } from '../meta/store.js';
+import { currentLevel, recordMove, recordLevelEnd } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import { TEX, addBlock } from './textures.js';
@@ -122,6 +122,15 @@ export class LevelScene extends BoardScene {
     }
     this.showPoints(scored, piece, row, col);
     this.updateHud();
+
+    // Ходы на уровнях идут в задания дня наравне с «Классикой».
+    const tracked = recordMove(getProgress(), {
+      linesCleared: result.linesCleared,
+      streak: scored.streak,
+      boardEmpty,
+    });
+    setProgress(tracked.progress);
+    tracked.completed.forEach((task, i) => this.showTaskDone(task, i));
 
     this.pieces[slot] = refillPiece(this.board, this.pieces, slot, this.rng, {
       difficulty: this.def.difficulty,
@@ -325,6 +334,8 @@ export class LevelScene extends BoardScene {
     this.finished = true;
     const stars = status === 'won' ? starsFor(this.state) : 0;
     playSound(status === 'won' ? 'fanfare' : 'gameOver');
+    const ended = recordLevelEnd(getProgress());
+    setProgress(ended.progress);
     this.time.delayedCall(700, () => {
       this.scene.launch('LevelResult', {
         levelId: this.levelId,
@@ -332,6 +343,7 @@ export class LevelScene extends BoardScene {
         stars,
         score: this.state.score,
         hasNext: this.levelId < LEVELS_TOTAL,
+        tasksDone: ended.completed,
       });
     });
   }
