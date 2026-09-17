@@ -5,8 +5,11 @@ export const THEME = {
   emptyCell: 0x24304f,
   text: '#ffffff',
   textMuted: '#8a94b8',
-  button: 0x3a4a7a,
-  buttonPressed: 0x2c3960,
+  accent: 0x3dbb6e,
+  accentPressed: 0x2e9456,
+  gold: '#ffd93d',
+  overlay: 0x0b0b16,
+  panel: 0x232a4a,
   // Индекс цвета фигуры → цвет блока. Длина = COLOR_COUNT.
   blocks: [0xff5c5c, 0xffa53d, 0xffd93d, 0x5ed16a, 0x3dc9ff, 0x5c7cff, 0xc35cff],
 };

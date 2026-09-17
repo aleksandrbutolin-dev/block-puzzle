@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { GAME_WIDTH } from '../config.js';
 import { BOARD_SIZE, createBoard, canPlace, place, findFullLines, applyMove } from '../core/board.js';
 import { generateSet, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
+import { createScoreState, scoreMove } from '../core/score.js';
+import { loadValue, saveValue } from '../platform/storage.js';
 import { THEME, drawBlock } from './theme.js';
+import { addText } from './ui.js';
 
 // Раскладка экрана 720×1280.
 const CELL = 80;
@@ -33,15 +36,14 @@ export class GameScene extends Phaser.Scene {
     this.drag = null;
     this.returning = new Set(); // слоты, чьи фигуры летят обратно в лоток
     this.isOver = false;
+    this.scoreState = createScoreState();
+    this.bestAtStart = loadValue('best', 0);
+    this.best = this.bestAtStart;
+    this.shownScore = 0;
 
-    this.add
-      .text(GAME_WIDTH / 2, 90, '0', {
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '84px',
-        fontStyle: 'bold',
-        color: THEME.text,
-      })
-      .setOrigin(0.5);
+    this.bestText = addText(this, GAME_WIDTH / 2, 50, '', 30, { color: THEME.textMuted });
+    this.scoreText = addText(this, GAME_WIDTH / 2, 135, '0', 96, { fontStyle: 'bold' });
+    this.updateBestText();
 
     this.boardGraphics = this.add.graphics();
     this.previewGraphics = this.add.graphics();
@@ -150,9 +152,15 @@ export class GameScene extends Phaser.Scene {
     this.board = result.board;
     this.pieces[slot] = null;
 
+    const boardEmpty = this.board.every((line) => line.every((cell) => cell === null));
+    const scored = scoreMove(this.scoreState, { ...result, boardEmpty });
+    this.scoreState = scored.state;
+    this.updateScore();
+
     if (result.linesCleared > 0) {
       this.animateClear(before, piece, row, col, result.lines);
     }
+    this.showMovePopups(scored, piece, row, col);
 
     if (this.pieces.every((p) => p === null)) {
       this.pieces = generateSet(this.board, this.rng);
@@ -162,8 +170,95 @@ export class GameScene extends Phaser.Scene {
     this.drawTray();
 
     if (!hasAnyMove(this.board, this.pieces)) {
-      this.showNoMoves();
+      this.endGame();
     }
+  }
+
+  // ---------- Счёт ----------
+
+  updateScore() {
+    const score = this.scoreState.score;
+    if (score > this.best) {
+      this.best = score;
+      saveValue('best', score); // сразу, чтобы рекорд не пропал при закрытии вкладки
+      this.updateBestText();
+    }
+    // Число «набегает» к новому значению.
+    this.tweens.killTweensOf(this);
+    this.tweens.add({
+      targets: this,
+      shownScore: score,
+      duration: 350,
+      ease: 'Quad.easeOut',
+      onUpdate: () => this.scoreText.setText(String(Math.round(this.shownScore))),
+    });
+    this.tweens.add({
+      targets: this.scoreText,
+      scale: { from: 1.12, to: 1 },
+      duration: 200,
+    });
+  }
+
+  updateBestText() {
+    this.bestText.setText(`Рекорд: ${this.best}`);
+  }
+
+  // Всплывающие «+N», «Комбо», «Серия», «Чистое поле» над местом хода.
+  showMovePopups(scored, piece, row, col) {
+    const { rows, cols } = pieceSize(piece.cells);
+    const x = BOARD_X + (col + cols / 2) * CELL;
+    const y = BOARD_Y + (row + rows / 2) * CELL;
+
+    const lines = [{ text: `+${scored.points}`, size: 56, color: THEME.text }];
+    if (scored.combo >= 2) {
+      lines.push({ text: `Комбо ×${scored.combo}`, size: 44, color: THEME.gold });
+    }
+    if (scored.streak >= 2) {
+      lines.push({ text: `Серия ×${scored.streak}`, size: 40, color: '#5ed16a' });
+    }
+    if (scored.bonusPoints > 0) {
+      lines.push({ text: 'Чистое поле!', size: 48, color: '#3dc9ff' });
+    }
+
+    lines.forEach((line, i) => {
+      const label = addText(this, x, y + i * 56, line.text, line.size, {
+        color: line.color,
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6,
+      }).setDepth(15);
+      // Не даём надписи вылезти за край экрана.
+      const half = label.width / 2 + 16;
+      label.x = Phaser.Math.Clamp(x, half, GAME_WIDTH - half);
+      label.setScale(0.5);
+      this.tweens.add({
+        targets: label,
+        scale: 1,
+        duration: 180,
+        delay: i * 90,
+        ease: 'Back.easeOut',
+      });
+      this.tweens.add({
+        targets: label,
+        y: label.y - 90,
+        alpha: 0,
+        duration: 700,
+        delay: 450 + i * 90,
+        ease: 'Quad.easeIn',
+        onComplete: () => label.destroy(),
+      });
+    });
+  }
+
+  endGame() {
+    this.isOver = true;
+    const score = this.scoreState.score;
+    const isNewBest = score > this.bestAtStart;
+
+    // Пауза, чтобы игрок увидел последний ход.
+    this.time.delayedCall(700, () => {
+      this.scene.launch('GameOver', { score, best: this.best, isNewBest });
+    });
   }
 
   animateClear(before, piece, row, col, lines) {
@@ -192,25 +287,6 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => g.destroy(),
       });
     }
-  }
-
-  // Временно, до экрана «Игра окончена» (шаг 2.5).
-  showNoMoves() {
-    this.isOver = true;
-    this.add
-      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
-      .setDepth(20)
-      .setInteractive()
-      .on('pointerup', () => this.scene.restart());
-    this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'Ходов нет\n\nнажмите, чтобы начать заново', {
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '40px',
-        color: THEME.text,
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setDepth(21);
   }
 
   // ---------- Отрисовка ----------
