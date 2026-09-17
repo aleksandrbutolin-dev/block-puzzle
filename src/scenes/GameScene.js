@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config.js';
-import { BOARD_SIZE, createBoard, canPlace, place, findFullLines, applyMove } from '../core/board.js';
+import { BOARD_SIZE, createBoard, place, findFullLines, applyMove, findDropTarget } from '../core/board.js';
 import { generateSet, refillPiece, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
@@ -117,10 +117,11 @@ export class GameScene extends Phaser.Scene {
       const { x, y } = slotCenter(slot);
       const body = this.add.container(0, 0);
       const outer = this.add.container(x, y, [body]).setDepth(5);
+      // Едва заметное «дыхание» — сильное покачивание рядом с пальцем выглядит как дрожание.
       this.tweens.add({
         targets: body,
-        y: -5,
-        duration: 1100,
+        y: -2,
+        duration: 1800,
         delay: slot * 250,
         yoyo: true,
         repeat: -1,
@@ -259,12 +260,12 @@ export class GameScene extends Phaser.Scene {
 
     const left = cx - (drag.cols * CELL) / 2;
     const top = cy - (drag.rows * CELL) / 2;
-    const row = Math.round((top - BOARD_Y) / CELL);
-    const col = Math.round((left - BOARD_X) / CELL);
-    const valid = canPlace(this.board, drag.piece.cells, row, col);
-    const target = valid ? { row, col } : null;
+    const row = (top - BOARD_Y) / CELL;
+    const col = (left - BOARD_X) / CELL;
+    const target = findDropTarget(this.board, drag.piece.cells, row, col, drag.target);
 
-    if (target?.row !== drag.target?.row || target?.col !== drag.target?.col) {
+    const same = target?.row === drag.target?.row && target?.col === drag.target?.col;
+    if (!same) {
       drag.target = target;
       this.drawPreview();
     }
@@ -673,13 +674,20 @@ export class GameScene extends Phaser.Scene {
     const texture = TEX.block(drag.piece.color);
     const placed = place(this.board, drag.piece.cells, row, col, drag.piece.color);
 
+    const shown = [];
     for (const [r, c] of lineCells(findFullLines(placed))) {
-      this.previewViews[r][c].setTexture(texture).setAlpha(1).setVisible(true);
+      shown.push([this.previewViews[r][c].setTexture(texture).setVisible(true), 1]);
     }
     for (const [dr, dc] of drag.piece.cells) {
       const view = this.previewViews[row + dr][col + dc];
-      if (!view.visible) view.setTexture(texture).setAlpha(0.45).setVisible(true);
-      this.ghostFrames[row + dr][col + dc].setVisible(true);
+      if (!view.visible) shown.push([view.setTexture(texture).setVisible(true), 0.45]);
+      shown.push([this.ghostFrames[row + dr][col + dc].setVisible(true), 1]);
+    }
+    // Подсветка проявляется плавно, а не вспыхивает.
+    for (const [view, alpha] of shown) {
+      this.tweens.killTweensOf(view);
+      view.setAlpha(0);
+      this.tweens.add({ targets: view, alpha, duration: 110, ease: 'Sine.easeOut' });
     }
   }
 

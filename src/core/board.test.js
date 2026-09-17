@@ -8,6 +8,7 @@ import {
   findFullLines,
   clearLines,
   applyMove,
+  findDropTarget,
 } from './board.js';
 
 const DOT = [[0, 0]];
@@ -200,5 +201,42 @@ describe('canPlaceAnywhere', () => {
   it('на полностью занятом поле места нет', () => {
     const board = fromRows(Array(8).fill('########'));
     expect(canPlaceAnywhere(board, DOT)).toBe(false);
+  });
+});
+
+describe('findDropTarget', () => {
+  it('ровно над клеткой — эта клетка', () => {
+    expect(findDropTarget(createBoard(), SQUARE_2, 3, 4)).toEqual({ row: 3, col: 4 });
+  });
+
+  it('между клетками — ближайшая', () => {
+    expect(findDropTarget(createBoard(), SQUARE_2, 3.2, 4.7)).toEqual({ row: 3, col: 5 });
+  });
+
+  it('держит текущее место на границе клеток', () => {
+    const current = { row: 3, col: 4 };
+    // Без удержания выбрали бы (3, 5), но фигура ушла от текущего места меньше чем на 0.75.
+    expect(findDropTarget(createBoard(), SQUARE_2, 3.1, 4.6, current)).toBe(current);
+    // Ушла дальше — место меняется.
+    expect(findDropTarget(createBoard(), SQUARE_2, 3.1, 4.8, current)).toEqual({ row: 3, col: 5 });
+  });
+
+  it('текущее место стало недоступно — ищет заново', () => {
+    const board = place(createBoard(), DOT, 3, 4, 1);
+    expect(findDropTarget(board, SQUARE_2, 3.1, 4.4, { row: 3, col: 4 })).toEqual({ row: 3, col: 5 });
+  });
+
+  it('под пальцем занято — берёт свободное соседнее место', () => {
+    const board = place(createBoard(), DOT, 3, 4, 1);
+    expect(findDropTarget(board, DOT, 3.4, 4.3)).toEqual({ row: 4, col: 4 }); // (4,4) ближе, чем (3,5)
+  });
+
+  it('за краем поля — ближайшее допустимое внутри', () => {
+    expect(findDropTarget(createBoard(), SQUARE_2, -0.4, 6.3)).toEqual({ row: 0, col: 6 });
+  });
+
+  it('далеко от поля или всё занято — null', () => {
+    expect(findDropTarget(createBoard(), SQUARE_2, -3, 2)).toBeNull();
+    expect(findDropTarget(fromRows(Array(8).fill('########')), DOT, 2.5, 2.5)).toBeNull();
   });
 });

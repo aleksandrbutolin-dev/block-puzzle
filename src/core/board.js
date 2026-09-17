@@ -79,3 +79,35 @@ export function applyMove(board, cells, row, col, color) {
     cellsPlaced: cells.length,
   };
 }
+
+// Насколько далеко (в клетках) палец может уйти от выбранного места, прежде чем оно сменится.
+export const DROP_HOLD = 0.75;
+
+// Куда поставить фигуру, если её левый верхний угол сейчас над дробной позицией (row, col).
+// - текущее место держится, пока фигура не ушла от него дальше DROP_HOLD — подсветка не мигает на границе клеток;
+// - иначе берётся ближайшая допустимая из четырёх соседних позиций;
+// - null — рядом поставить некуда.
+export function findDropTarget(board, cells, row, col, current = null) {
+  if (
+    current &&
+    Math.abs(row - current.row) < DROP_HOLD &&
+    Math.abs(col - current.col) < DROP_HOLD &&
+    canPlace(board, cells, current.row, current.col)
+  ) {
+    return current;
+  }
+
+  let best = null;
+  let bestDistance = Infinity;
+  for (const r of new Set([Math.floor(row), Math.ceil(row)])) {
+    for (const c of new Set([Math.floor(col), Math.ceil(col)])) {
+      if (!canPlace(board, cells, r, c)) continue;
+      const distance = (row - r) ** 2 + (col - c) ** 2;
+      if (distance < bestDistance) {
+        best = { row: r, col: c };
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
+}
