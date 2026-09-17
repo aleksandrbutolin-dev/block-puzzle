@@ -4,7 +4,7 @@ import { BootScene } from './scenes/BootScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { THEME } from './scenes/theme.js';
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: THEME.background,
@@ -16,3 +16,6 @@ new Phaser.Game({
   },
   scene: [BootScene, GameScene],
 });
+
+// Для отладки в консоли браузера (только npm run dev).
+if (import.meta.env.DEV) window.game = game;
