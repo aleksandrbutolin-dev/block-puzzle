@@ -31,10 +31,19 @@ const TRAY_CELL = 44; // размер клетки фигуры в лотке
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
 
+// Облака: [x, y, масштаб, прозрачность, скорость px/с].
+const CLOUDS = [
+  [110, 185, 0.9, 0.55, 9],
+  [615, 105, 0.7, 0.5, 6],
+  [580, 215, 0.5, 0.4, 4],
+];
+
 const cellCenter = (row, col) => ({
   x: BOARD_X + col * CELL + CELL / 2,
   y: BOARD_Y + row * CELL + CELL / 2,
 });
+
+const slotCenter = (slot) => ({ x: TRAY_SLOT_W * slot + TRAY_SLOT_W / 2, y: TRAY_Y });
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -54,6 +63,9 @@ export class GameScene extends Phaser.Scene {
     this.shownScore = 0;
 
     this.add.image(0, 0, TEX.background).setOrigin(0);
+    this.clouds = CLOUDS.map(([x, y, scale, alpha, speed]) =>
+      Object.assign(this.add.image(x, y, TEX.cloud).setScale(scale).setAlpha(alpha), { speed }),
+    );
     this.createBoardView();
     this.add
       .image(GAME_WIDTH / 2, TRAY_Y + SHELF_SIZE.height / 2 - SHELF_PANEL_CENTER_Y, TEX.shelf)
@@ -63,24 +75,27 @@ export class GameScene extends Phaser.Scene {
     this.scoreText = addText(this, GAME_WIDTH / 2, 142, '0', 104);
     this.updateBestText();
 
-    this.trayViews = [0, 1, 2].map(() => this.add.container(0, 0).setDepth(5));
-    for (let slot = 0; slot < this.trayViews.length; slot++) {
-      this.add
-        .zone(TRAY_SLOT_W * slot + TRAY_SLOT_W / 2, TRAY_Y, TRAY_SLOT_W, TRAY_SLOT_H)
-        .setInteractive()
-        .on('pointerdown', (pointer) => this.startDrag(slot, pointer));
-    }
+    this.createTray();
+    this.createParticles();
+
     this.input.on('pointermove', (pointer) => this.moveDrag(pointer));
     this.input.on('pointerup', (pointer) => this.endDrag(pointer));
     this.input.on('pointerupoutside', (pointer) => this.endDrag(pointer));
 
     this.drawBoard();
-    this.drawTray();
+    this.drawTray(true);
+  }
+
+  update(_time, delta) {
+    for (const cloud of this.clouds) {
+      cloud.x += (cloud.speed * delta) / 1000;
+      if (cloud.x - cloud.displayWidth / 2 > GAME_WIDTH) cloud.x = -cloud.displayWidth / 2;
+    }
   }
 
   createBoardView() {
     const offset = BOARD_TEX_PADDING + BOARD_TEX_MARGIN;
-    this.add.image(BOARD_X - offset, BOARD_Y - offset, TEX.board).setOrigin(0);
+    this.boardImage = this.add.image(BOARD_X - offset, BOARD_Y - offset, TEX.board).setOrigin(0);
 
     this.blockViews = [];
     this.previewViews = [];
@@ -99,6 +114,67 @@ export class GameScene extends Phaser.Scene {
         );
       }
     }
+    this.blockScale = this.blockViews[0][0].scaleX;
+  }
+
+  // Слот лотка: внешний контейнер (выпрыгивание) → body (покачивание) → блоки.
+  createTray() {
+    this.trayViews = [0, 1, 2].map((slot) => {
+      const { x, y } = slotCenter(slot);
+      const body = this.add.container(0, 0);
+      const outer = this.add.container(x, y, [body]).setDepth(5);
+      this.tweens.add({
+        targets: body,
+        y: -5,
+        duration: 1100,
+        delay: slot * 250,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      this.add
+        .zone(x, y, TRAY_SLOT_W, TRAY_SLOT_H)
+        .setInteractive()
+        .on('pointerdown', (pointer) => this.startDrag(slot, pointer));
+      return { outer, body };
+    });
+  }
+
+  createParticles() {
+    this.particleTint = 0xffffff;
+    const tint = { onEmit: () => this.particleTint };
+    this.sparks = this.add
+      .particles(0, 0, TEX.spark, {
+        emitting: false,
+        speed: { min: 120, max: 340 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.9, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: { min: 350, max: 600 },
+        gravityY: 500,
+        tint,
+        blendMode: 'ADD',
+      })
+      .setDepth(12);
+    this.stars = this.add
+      .particles(0, 0, TEX.star, {
+        emitting: false,
+        speed: { min: 180, max: 420 },
+        angle: { min: 200, max: 340 }, // в основном вверх
+        scale: { start: 0.75, end: 0.15 },
+        alpha: { start: 1, end: 0 },
+        rotate: { min: -180, max: 180 },
+        lifespan: { min: 550, max: 850 },
+        gravityY: 900,
+        tint,
+      })
+      .setDepth(12);
+  }
+
+  burst(x, y, color, stars = 1) {
+    this.particleTint = THEME.blocks[color];
+    this.sparks.explode(5, x, y);
+    if (stars > 0) this.stars.explode(stars, x, y);
   }
 
   // ---------- Перетаскивание ----------
@@ -121,10 +197,10 @@ export class GameScene extends Phaser.Scene {
       target: null,
     };
 
-    // Фигура «вырастает» из лотка до размера клеток поля.
-    const from = this.trayOrigin(slot, piece);
+    // Фигура «выпрыгивает» из лотка до размера клеток поля — с перелётом.
+    const from = slotCenter(slot);
     sprite.setPosition(from.x, from.y).setScale(TRAY_CELL / CELL);
-    this.tweens.add({ targets: sprite, scale: 1, duration: 90, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: sprite, scale: 1, duration: 220, ease: 'Back.easeOut' });
 
     this.drawTray();
     this.moveDrag(pointer);
@@ -134,10 +210,12 @@ export class GameScene extends Phaser.Scene {
     const drag = this.drag;
     if (!drag || pointer.id !== drag.pointerId) return;
 
-    const left = pointer.x - (drag.cols * CELL) / 2;
-    const top = pointer.y - drag.lift - drag.rows * CELL;
-    drag.sprite.setPosition(left, top);
+    const cx = pointer.x;
+    const cy = pointer.y - drag.lift - (drag.rows * CELL) / 2;
+    drag.sprite.setPosition(cx, cy);
 
+    const left = cx - (drag.cols * CELL) / 2;
+    const top = cy - (drag.rows * CELL) / 2;
     const row = Math.round((top - BOARD_Y) / CELL);
     const col = Math.round((left - BOARD_X) / CELL);
     const valid = canPlace(this.board, drag.piece.cells, row, col);
@@ -156,21 +234,23 @@ export class GameScene extends Phaser.Scene {
     this.drawPreview();
 
     if (drag.target) {
+      this.tweens.killTweensOf(drag.sprite);
       drag.sprite.destroy();
       this.makeMove(drag.slot, drag.piece, drag.target.row, drag.target.col);
       return;
     }
 
     // Мимо — фигура возвращается в лоток.
-    const home = this.trayOrigin(drag.slot, drag.piece);
+    const home = slotCenter(drag.slot);
     this.returning.add(drag.slot);
+    this.tweens.killTweensOf(drag.sprite);
     this.tweens.add({
       targets: drag.sprite,
       x: home.x,
       y: home.y,
       scale: TRAY_CELL / CELL,
-      duration: 160,
-      ease: 'Quad.easeOut',
+      duration: 220,
+      ease: 'Back.easeOut',
       onComplete: () => {
         drag.sprite.destroy();
         this.returning.delete(drag.slot);
@@ -192,40 +272,113 @@ export class GameScene extends Phaser.Scene {
     this.scoreState = scored.state;
     this.updateScore();
 
+    this.drawBoard();
+    this.animateLanding(piece, row, col);
     if (result.linesCleared > 0) {
       this.animateClear(before, piece, row, col, result.lines);
     }
+    if (result.linesCleared >= 2 || boardEmpty) {
+      this.shakeBoard(result.linesCleared);
+    }
     this.showMovePopups(scored, piece, row, col);
 
+    let newSet = false;
     if (this.pieces.every((p) => p === null)) {
       this.pieces = generateSet(this.board, this.rng);
+      newSet = true;
     }
-
-    this.drawBoard();
-    this.drawTray();
+    this.drawTray(newSet);
 
     if (!hasAnyMove(this.board, this.pieces)) {
       this.endGame();
     }
   }
 
+  // Поставленные блоки сплющиваются и пружинят (squash & stretch).
+  animateLanding(piece, row, col) {
+    const base = this.blockScale;
+    for (const [dr, dc] of piece.cells) {
+      const view = this.blockViews[row + dr][col + dc];
+      if (!view.visible) continue; // блок сразу ушёл в очищенную линию
+      this.tweens.killTweensOf(view);
+      view.setScale(base * 1.2, base * 0.78);
+      this.tweens.add({
+        targets: view,
+        scaleX: base,
+        scaleY: base,
+        duration: 380,
+        ease: 'Elastic.easeOut',
+        easeParams: [1.2, 0.5],
+      });
+    }
+  }
+
   animateClear(before, piece, row, col, lines) {
     // Цвет очищенной клетки: был на поле до хода или пришёл с фигурой.
     const placed = place(before, piece.cells, row, col, piece.color);
+    const base = this.blockScale;
+    let index = 0;
+
     for (const [r, c] of lineCells(lines)) {
       const { x, y } = cellCenter(r, c);
-      const block = addBlock(this, x, y, CELL, placed[r][c]).setDepth(6);
-      const distance = Math.abs(r - row) + Math.abs(c - col);
-      this.tweens.add({
+      const color = placed[r][c];
+      const block = addBlock(this, x, y, CELL, color).setDepth(6);
+      const delay = (Math.abs(r - row) + Math.abs(c - col)) * 28;
+      const withStar = index++ % 2 === 0;
+
+      // Подпрыгнуть → лопнуть с искрами.
+      this.tweens.chain({
         targets: block,
-        scale: 0,
-        alpha: 0,
-        delay: distance * 20,
-        duration: 220,
-        ease: 'Back.easeIn',
-        onComplete: () => block.destroy(),
+        tweens: [
+          {
+            y: y - 16,
+            scaleX: base * 1.18,
+            scaleY: base * 1.18,
+            duration: 130,
+            delay,
+            ease: 'Quad.easeOut',
+          },
+          {
+            y,
+            scaleX: 0,
+            scaleY: 0,
+            alpha: 0.4,
+            duration: 150,
+            ease: 'Back.easeIn',
+            onStart: () => this.burst(x, y - 10, color, withStar ? 1 : 0),
+            onComplete: () => block.destroy(),
+          },
+        ],
       });
     }
+
+    // Светлая вспышка вдоль очищаемых линий.
+    for (const r of lines.rows) {
+      this.flashLine(GAME_WIDTH / 2, cellCenter(r, 0).y, BOARD_PX, CELL);
+    }
+    for (const c of lines.cols) {
+      this.flashLine(cellCenter(0, c).x, BOARD_Y + BOARD_PX / 2, CELL, BOARD_PX);
+    }
+  }
+
+  flashLine(x, y, width, height) {
+    const flash = this.add
+      .rectangle(x, y, width, height, 0xfff4d6, 0.38)
+      .setDepth(7)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scaleX: width > height ? 1.04 : 1.3,
+      scaleY: width > height ? 1.3 : 1.04,
+      duration: 320,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  shakeBoard(lines) {
+    this.cameras.main.shake(220, 0.004 + Math.min(lines, 4) * 0.002);
   }
 
   // ---------- Счёт ----------
@@ -233,9 +386,11 @@ export class GameScene extends Phaser.Scene {
   updateScore() {
     const score = this.scoreState.score;
     if (score > this.best) {
+      const firstTime = this.best === this.bestAtStart && this.bestAtStart > 0;
       this.best = score;
       saveValue('best', score); // сразу, чтобы рекорд не пропал при закрытии вкладки
       this.updateBestText();
+      if (firstTime) this.celebrateBest();
     }
     // Число «набегает» к новому значению.
     this.tweens.killTweensOf(this);
@@ -246,15 +401,30 @@ export class GameScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
       onUpdate: () => this.scoreText.setText(String(Math.round(this.shownScore))),
     });
+    this.tweens.killTweensOf(this.scoreText);
     this.tweens.add({
       targets: this.scoreText,
-      scale: { from: 1.12, to: 1 },
-      duration: 200,
+      scale: { from: 1.18, to: 1 },
+      duration: 320,
+      ease: 'Back.easeOut',
     });
   }
 
   updateBestText() {
     this.bestText.setText(`Рекорд: ${this.best}`);
+  }
+
+  // Прежний рекорд побит в этой партии — надпись вспыхивает золотом.
+  celebrateBest() {
+    this.bestText.setColor(THEME.gold);
+    this.tweens.add({
+      targets: this.bestText,
+      scale: { from: 1.5, to: 1 },
+      duration: 500,
+      ease: 'Back.easeOut',
+    });
+    this.burst(this.bestText.x - 90, this.bestText.y, 2, 2);
+    this.burst(this.bestText.x + 90, this.bestText.y, 2, 2);
   }
 
   // Всплывающие «+N», «Комбо», «Серия», «Чистое поле» над местом хода.
@@ -281,20 +451,22 @@ export class GameScene extends Phaser.Scene {
       // Не даём надписи вылезти за край экрана.
       const half = label.width / 2 + 8;
       label.x = Phaser.Math.Clamp(x, half, GAME_WIDTH - half);
-      label.setScale(0.5);
+      label.setScale(0).setAngle(i % 2 ? 6 : -6);
       this.tweens.add({
         targets: label,
         scale: 1,
-        duration: 180,
-        delay: i * 90,
+        angle: 0,
+        duration: 320,
+        delay: i * 110,
         ease: 'Back.easeOut',
+        easeParams: [3],
       });
       this.tweens.add({
         targets: label,
-        y: label.y - 90,
+        y: label.y - 100,
         alpha: 0,
-        duration: 700,
-        delay: 450 + i * 90,
+        duration: 650,
+        delay: 650 + i * 110,
         ease: 'Quad.easeIn',
         onComplete: () => label.destroy(),
       });
@@ -306,35 +478,44 @@ export class GameScene extends Phaser.Scene {
     const score = this.scoreState.score;
     const isNewBest = score > this.bestAtStart;
 
+    // Поле «засыпает»: блоки по очереди тускнеют сверху вниз.
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const view = this.blockViews[r][c];
+        if (!view.visible) continue;
+        this.tweens.add({
+          targets: view,
+          alpha: 0.45,
+          duration: 200,
+          delay: r * 45 + c * 15,
+        });
+      }
+    }
+
     // Пауза, чтобы игрок увидел последний ход.
-    this.time.delayedCall(700, () => {
+    this.time.delayedCall(800, () => {
       this.scene.launch('GameOver', { score, best: this.best, isNewBest });
     });
   }
 
   // ---------- Отрисовка ----------
 
-  // Фигура из блоков; (0, 0) контейнера — левый верхний угол фигуры.
+  // Фигура из блоков; (0, 0) контейнера — центр фигуры.
   makePieceView(piece, size, withShadow = false) {
+    const { rows, cols } = pieceSize(piece.cells);
+    const ox = (cols * size) / 2;
+    const oy = (rows * size) / 2;
     const container = this.add.container(0, 0);
     if (withShadow) {
       for (const [r, c] of piece.cells) {
-        const shadow = this.add.image(c * size + size / 2 + 8, r * size + size / 2 + 16, TEX.blockShadow);
+        const shadow = this.add.image(c * size + size / 2 - ox + 8, r * size + size / 2 - oy + 16, TEX.blockShadow);
         container.add(shadow.setDisplaySize(size, size));
       }
     }
     for (const [r, c] of piece.cells) {
-      container.add(addBlock(this, c * size + size / 2, r * size + size / 2, size, piece.color));
+      container.add(addBlock(this, c * size + size / 2 - ox, r * size + size / 2 - oy, size, piece.color));
     }
     return container;
-  }
-
-  trayOrigin(slot, piece) {
-    const { rows, cols } = pieceSize(piece.cells);
-    return {
-      x: TRAY_SLOT_W * slot + TRAY_SLOT_W / 2 - (cols * TRAY_CELL) / 2,
-      y: TRAY_Y - (rows * TRAY_CELL) / 2,
-    };
   }
 
   drawBoard() {
@@ -373,17 +554,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  drawTray() {
+  // popIn — новые фигуры выпрыгивают по очереди.
+  drawTray(popIn = false) {
     this.pieces.forEach((piece, slot) => {
-      const view = this.trayViews[slot];
-      view.removeAll(true);
+      const { outer, body } = this.trayViews[slot];
+      body.removeAll(true);
       if (!piece || this.drag?.slot === slot || this.returning.has(slot)) return;
-      const { x, y } = this.trayOrigin(slot, piece);
-      view.setPosition(x, y);
-      for (const [r, c] of piece.cells) {
-        const cx = c * TRAY_CELL + TRAY_CELL / 2;
-        const cy = r * TRAY_CELL + TRAY_CELL / 2;
-        view.add(addBlock(this, cx, cy, TRAY_CELL, piece.color));
+      body.add(this.makePieceView(piece, TRAY_CELL));
+      if (popIn) {
+        this.tweens.killTweensOf(outer);
+        outer.setScale(0);
+        this.tweens.add({
+          targets: outer,
+          scale: 1,
+          duration: 380,
+          delay: 120 + slot * 110,
+          ease: 'Back.easeOut',
+          easeParams: [2.2],
+        });
       }
     });
   }

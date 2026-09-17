@@ -12,6 +12,7 @@ export const TEX = {
   board: 'board',
   shelf: 'shelf',
   background: 'background',
+  cloud: 'cloud',
   spark: 'spark',
   star: 'star',
 };
@@ -349,29 +350,6 @@ function drawBackground(ctx, W, H) {
     ctx.fill();
   }
 
-  // Пушистые облака с тенью снизу
-  const cloud = (cx, cy, scale, alpha) => {
-    const puffs = [
-      [-60, 10, 34], [-25, -12, 42], [18, -20, 48], [58, -2, 38], [85, 14, 26], [0, 16, 40],
-    ];
-    const path = (dy) => {
-      ctx.beginPath();
-      for (const [px, py, r] of puffs) {
-        ctx.moveTo(cx + px * scale + r * scale, cy + (py + dy) * scale);
-        ctx.arc(cx + px * scale, cy + (py + dy) * scale, r * scale, 0, Math.PI * 2);
-      }
-    };
-    path(6);
-    ctx.fillStyle = `rgba(180, 120, 200, ${alpha})`;
-    ctx.fill();
-    path(0);
-    ctx.fillStyle = `rgba(255, 244, 252, ${alpha})`;
-    ctx.fill();
-  };
-  cloud(110, 185, 0.9, 0.5);
-  cloud(615, 105, 0.7, 0.45);
-  cloud(580, 215, 0.5, 0.35);
-
   // Холмы внизу — два слоя
   const hills = (baseY, amp, color, phase) => {
     ctx.fillStyle = color;
@@ -393,6 +371,28 @@ function drawBackground(ctx, W, H) {
   ground.addColorStop(1, 'rgba(80, 40, 110, 0.85)');
   ctx.fillStyle = ground;
   ctx.fillRect(0, H * 0.86, W, H * 0.14);
+}
+
+// Пушистое облако с тенью снизу (отдельная картинка — облака плывут).
+function drawCloud(ctx, W, H) {
+  const cx = W / 2 - 12;
+  const cy = H / 2;
+  const puffs = [
+    [-60, 10, 34], [-25, -12, 42], [18, -20, 48], [58, -2, 38], [85, 14, 26], [0, 16, 40],
+  ];
+  const path = (dy) => {
+    ctx.beginPath();
+    for (const [px, py, r] of puffs) {
+      ctx.moveTo(cx + px + r, cy + py + dy);
+      ctx.arc(cx + px, cy + py + dy, r, 0, Math.PI * 2);
+    }
+  };
+  path(7);
+  ctx.fillStyle = 'rgb(190, 140, 215)';
+  ctx.fill();
+  path(0);
+  ctx.fillStyle = 'rgb(255, 246, 252)';
+  ctx.fill();
 }
 
 // ---------- Частицы ----------
@@ -431,6 +431,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.board, boardSize, boardSize, drawBoard);
   makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
+  makeCanvas(scene, TEX.cloud, 260, 150, drawCloud);
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
   makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
 }
