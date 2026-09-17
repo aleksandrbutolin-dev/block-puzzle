@@ -1,5 +1,5 @@
 import { GAME_WIDTH } from '../config.js';
-import { THEME } from './theme.js';
+import { THEME, DEPTH, MIN_TAP } from './theme.js';
 import { TEX } from './textures.js';
 import { playSound, isMuted, setMuted } from '../platform/audio.js';
 
@@ -95,21 +95,53 @@ export function addButton(
   return container;
 }
 
-// Круглая кнопка-значок (домой, звук).
-export function addIconButton(scene, x, y, texture, onClick, size = 80) {
-  const button = scene.add
-    .image(x, y, texture)
-    .setDisplaySize(size, size)
-    .setDepth(20)
-    .setInteractive({ useHandCursor: true });
+// Круглая кнопка-значок (домой, звук). Нажатия ловит зона не меньше MIN_TAP,
+// даже если сам значок нарисован мельче.
+export function addIconButton(scene, x, y, texture, onClick, size = 92) {
+  const button = scene.add.image(x, y, texture).setDisplaySize(size, size).setDepth(DEPTH.hud);
   const base = button.scale;
-  button.on('pointerdown', () => button.setScale(base * 0.9));
-  button.on('pointerout', () => button.setScale(base));
-  button.on('pointerup', () => {
-    button.setScale(base);
-    onClick(button);
-  });
+  const side = Math.max(size, MIN_TAP);
+  scene.add
+    .zone(x, y, side, side)
+    .setDepth(DEPTH.hud)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', () => button.setScale(base * 0.9))
+    .on('pointerout', () => button.setScale(base))
+    .on('pointerup', () => {
+      button.setScale(base);
+      onClick(button);
+    });
   return button;
+}
+
+// Текстовая кнопка («Нет, спасибо», «К карте»): у надписи своя зона нажатия MIN_TAP по высоте.
+export function addTextButton(scene, x, y, label, size, onClick, options = {}) {
+  const text = addText(scene, x, y, label, size, { color: THEME.panelMuted, stroke: null, ...options });
+  const width = Math.max(text.width + 60, 260);
+  const zone = scene.add
+    .zone(x, y, width, MIN_TAP)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', () => text.setScale(0.94))
+    .on('pointerout', () => text.setScale(1))
+    .on('pointerup', () => {
+      text.setScale(1);
+      playSound('button');
+      onClick();
+    });
+  return { text, zone };
+}
+
+// «★ 12» — картинкой звезды, а не текстовым символом.
+export function addStarCount(scene, x, y, count, size = 40) {
+  const container = scene.add.container(x, y);
+  const star = scene.add.image(0, 0, TEX.star).setDisplaySize(size, size).setTint(0xffd23f);
+  const text = addText(scene, 0, 0, String(count), size);
+  const gap = 10;
+  const total = size + gap + text.width - text.padding.left * 2;
+  star.x = -total / 2 + size / 2;
+  text.x = star.x + size / 2 + gap + (text.width - text.padding.left * 2) / 2;
+  container.add([star, text]);
+  return container;
 }
 
 export function addSoundButton(scene, x = GAME_WIDTH - 58, y = 58) {
@@ -122,7 +154,7 @@ export function addSoundButton(scene, x = GAME_WIDTH - 58, y = 58) {
 
 // Плашка с монетами. setValue(n, animate) — плавно досчитывает.
 export function addCoinCounter(scene, x, y) {
-  const container = scene.add.container(x, y).setDepth(20);
+  const container = scene.add.container(x, y).setDepth(DEPTH.hud);
   const bg = scene.add.graphics();
   bg.fillStyle(0x1e2958, 0.85);
   bg.fillRoundedRect(0, -30, 190, 60, 30);
@@ -166,7 +198,7 @@ export function flyCoins(scene, fromX, fromY, counter, count = 8, onDone = () =>
   const tx = target.tx + counter.icon.x;
   const ty = target.ty + counter.icon.y;
   for (let i = 0; i < count; i++) {
-    const coin = scene.add.image(fromX, fromY, TEX.coin).setDisplaySize(52, 52).setDepth(60);
+    const coin = scene.add.image(fromX, fromY, TEX.coin).setDisplaySize(52, 52).setDepth(DEPTH.flying);
     const angle = (i / count) * Math.PI * 2;
     scene.tweens.chain({
       targets: coin,
@@ -197,7 +229,7 @@ export function flyCoins(scene, fromX, fromY, counter, count = 8, onDone = () =>
 
 // Короткая всплывающая подсказка по центру.
 export function showToast(scene, message, y = 640) {
-  const label = addText(scene, GAME_WIDTH / 2, y, message, 40).setDepth(70);
+  const label = addText(scene, GAME_WIDTH / 2, y, message, 40).setDepth(DEPTH.toast);
   label.setScale(0);
   scene.tweens.chain({
     targets: label,

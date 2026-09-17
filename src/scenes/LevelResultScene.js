@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
 import { TEX } from './textures.js';
-import { addText, addButton, flyCoins, addCoinCounter } from './ui.js';
+import { addText, addButton, addTextButton, flyCoins, addCoinCounter } from './ui.js';
 import { getProgress, setProgress } from '../meta/store.js';
 import { completeLevel } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
@@ -94,10 +94,8 @@ export class LevelResultScene extends Phaser.Scene {
     panel.add(addButton(this, 0, 230, mainLabel, mainAction, { width: 360, height: 104 }));
 
     if (mainLabel !== 'К карте') {
-      const toMap = addText(this, 0, 302, 'К карте', 30, { color: THEME.panelMuted, stroke: null })
-        .setInteractive({ useHandCursor: true })
-        .on('pointerup', () => this.toMap());
-      panel.add(toMap);
+      const toMap = addTextButton(this, 0, 306, 'К карте', 32, () => this.toMap());
+      panel.add([toMap.text, toMap.zone]);
     }
 
     panel.setScale(0.6).setAlpha(0);

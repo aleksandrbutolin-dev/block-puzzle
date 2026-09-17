@@ -7,6 +7,7 @@ import { addText, addButton, addIconButton, addSoundButton, addCoinCounter, flyC
 import { getProgress, setProgress, checkInToday } from '../meta/store.js';
 import { claimTask, isTaskDone } from '../meta/progress.js';
 import { taskText, timeUntilTomorrow } from '../meta/texts.js';
+import { loopTween, reducedMotion } from './motion.js';
 
 // Цвет блока-значка для типа задания.
 const TASK_COLORS = { lines: 4, pieces: 1, games: 3, combo: 2, streak: 6, score: 5, clearBoard: 0 };
@@ -97,7 +98,7 @@ export class TasksScene extends Phaser.Scene {
       bar.fillStyle(0xffffff, 0.3);
       bar.fillRoundedRect(barX + 6, barY - barH / 2 + 4, Math.max(barW * fill - 12, 8), 8, 4);
     }
-    const barText = addText(this, barX + barW / 2, barY, `${task.progress} / ${task.target}`, 24);
+    const barText = addText(this, barX + barW / 2, barY, `${task.progress} / ${task.target}`, 30);
     card.add([bar, barText]);
 
     // Награда и кнопка
@@ -116,7 +117,7 @@ export class TasksScene extends Phaser.Scene {
         variant: 'orange',
       });
       card.add(button);
-      this.tweens.add({ targets: button, scale: 1.07, duration: 450, yoyo: true, repeat: -1 });
+      loopTween(this, { targets: button, scale: 1.07, duration: 450 });
     } else {
       card.add(addText(this, rightX, 132, `${Math.floor(fill * 100)}%`, 32, { color: THEME.textMuted }));
     }

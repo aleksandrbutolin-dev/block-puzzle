@@ -2,9 +2,10 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
 import { TEX } from './textures.js';
-import { addText, addButton, showToast } from './ui.js';
+import { addText, addButton, addTextButton, showToast } from './ui.js';
 import { showRewarded } from '../platform/ads.js';
 import { playSound } from '../platform/audio.js';
+import { loopTween } from './motion.js';
 
 const PANEL_W = 560;
 const PANEL_H = 560;
@@ -64,14 +65,12 @@ export class ContinueScene extends Phaser.Scene {
       fontSize: 44,
       icon: TEX.video,
     });
-    this.tweens.add({ targets: yes, scale: 1.05, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    loopTween(this, { targets: yes, scale: 1.05, duration: 500, ease: 'Sine.easeInOut' });
 
-    const no = addText(this, 0, 240, 'Нет, спасибо', 32, { color: THEME.panelMuted, stroke: null })
-      .setInteractive({ useHandCursor: true })
-      .on('pointerup', () => this.decline());
+    const no = addTextButton(this, 0, 245, 'Нет, спасибо', 32, () => this.decline());
 
-    panel.add([bg, ribbon, title, text, this.ring, this.countText, yes, no]);
-    this.buttons = [yes, no];
+    panel.add([bg, ribbon, title, text, this.ring, this.countText, yes, no.text, no.zone]);
+    this.buttons = [yes, no.zone];
 
     panel.setScale(0.7).setAlpha(0);
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });

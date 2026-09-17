@@ -15,6 +15,7 @@ import { getProgress, setProgress } from '../meta/store.js';
 import { SKINS, buySkin, selectSkin } from '../meta/progress.js';
 import { SKIN_NAMES, plural } from '../meta/texts.js';
 import { playSound } from '../platform/audio.js';
+import { loopTween, reducedMotion } from './motion.js';
 
 const CARD_W = 640;
 const CARD_H = 380;
@@ -85,13 +86,11 @@ export class CollectionScene extends Phaser.Scene {
       const block = addBlock(this, px + col * (size + gap), 135 + row * (size + gap), size, color, skin.id);
       card.add(block);
       if (animate) {
-        this.tweens.add({
+        loopTween(this, {
           targets: block,
           y: block.y - 8,
           duration: 500,
           delay: color * 70,
-          yoyo: true,
-          repeat: -1,
           repeatDelay: 1500,
           ease: 'Sine.easeInOut',
         });
@@ -121,7 +120,7 @@ export class CollectionScene extends Phaser.Scene {
       });
       card.add(button);
       if (canBuy) {
-        this.tweens.add({ targets: button, scale: 1.06, duration: 450, yoyo: true, repeat: -1 });
+        loopTween(this, { targets: button, scale: 1.06, duration: 450 });
       }
     }
 

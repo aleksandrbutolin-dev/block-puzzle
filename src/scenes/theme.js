@@ -24,7 +24,9 @@ export const THEME = {
 
   panel: 0xfff3e6,
   panelText: '#3a1d5c',
-  panelMuted: '#9a7ab4',
+  // Контраст к кремовой панели не ниже 4.5:1 (проверено): 5.1 и 4.7.
+  panelMuted: '#7a5b96',
+  goldOnLight: '#a35d05',
   overlay: 0x1a0e30,
 
   button: 0x4fd06a,
@@ -42,6 +44,31 @@ export const THEME = {
     cellEdge: '#3d4d94',
   },
 };
+
+// Слои отрисовки: чем больше, тем выше. Единая шкала вместо случайных чисел.
+export const DEPTH = {
+  board: 1,
+  preview: 2,
+  ghost: 3,
+  overlayCell: 4,
+  tray: 5,
+  clearing: 6,
+  flash: 7,
+  drag: 10,
+  particles: 12,
+  popup: 15,
+  hud: 20,
+  banner: 25,
+  dialog: 50,
+  flying: 60,
+  toast: 70,
+};
+
+// Минимальная сторона зоны нажатия: 44 css px на телефоне ≈ 88 игровых.
+export const MIN_TAP = 88;
+
+// Минимальный размер текста: 16 css px на телефоне ≈ 30 игровых.
+export const MIN_TEXT = 30;
 
 // Значок, выдавленный на блоке. Индекс совпадает с THEME.blocks.
 export const BLOCK_ICONS = ['heart', 'circle', 'star', 'diamond', 'drop', 'square', 'flower'];

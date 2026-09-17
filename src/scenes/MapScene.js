@@ -12,10 +12,19 @@ import {
   claimChapter,
 } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
-import { THEME } from './theme.js';
+import { THEME, DEPTH } from './theme.js';
 import { TEX } from './textures.js';
 import { addBackdrop } from './backdrop.js';
-import { addText, addIconButton, addSoundButton, addCoinCounter, showToast, flyCoins } from './ui.js';
+import {
+  addText,
+  addIconButton,
+  addSoundButton,
+  addCoinCounter,
+  showToast,
+  flyCoins,
+  addStarCount,
+} from './ui.js';
+import { loopTween } from './motion.js';
 
 const NODE_R = 52; // радиус кружка уровня
 const STEP_Y = 165; // расстояние между уровнями
@@ -46,7 +55,8 @@ export class MapScene extends Phaser.Scene {
     addSoundButton(this);
     this.coins = addCoinCounter(this, GAME_WIDTH / 2 - 95, 58);
     this.coins.setValue(progress.coins);
-    addText(this, GAME_WIDTH / 2, 160, `Приключение · ★ ${totalStars(progress)}`, 40).setDepth(30);
+    const header = addText(this, GAME_WIDTH / 2 - 55, 160, 'Приключение', 40).setDepth(DEPTH.banner);
+    addStarCount(this, header.x + header.width / 2 + 45, 162, totalStars(progress), 38).setDepth(DEPTH.banner);
 
     // Тропинка живёт в контейнере, который двигается при прокрутке.
     this.path = this.add.container(0, 0);
@@ -107,7 +117,7 @@ export class MapScene extends Phaser.Scene {
     const done = isChapterDone(progress, chapter);
     const claimed = isChapterClaimed(progress, chapter.id);
     const chest = this.add.image(x, y, TEX.chest(claimed)).setDisplaySize(96, 96);
-    const label = addText(this, x, y + 62, `${chapter.reward.coins}`, 28, { color: THEME.gold });
+    const label = addText(this, x, y + 64, `${chapter.reward.coins}`, 30, { color: THEME.gold });
     this.path.add([chest, label]);
 
     if (!done) {
@@ -116,7 +126,7 @@ export class MapScene extends Phaser.Scene {
     }
     if (claimed) return;
 
-    this.tweens.add({ targets: chest, scale: chest.scale * 1.12, duration: 600, yoyo: true, repeat: -1 });
+    loopTween(this, { targets: chest, scale: chest.scale * 1.12, duration: 600 });
     const zone = this.add
       .zone(x, y, 120, 120)
       .setInteractive({ useHandCursor: true })
@@ -176,7 +186,7 @@ export class MapScene extends Phaser.Scene {
       halo.lineStyle(6, 0xffffff, 0.8);
       halo.strokeCircle(x, y, NODE_R + 12);
       this.path.add(halo);
-      this.tweens.add({ targets: halo, alpha: 0.2, duration: 700, yoyo: true, repeat: -1 });
+      loopTween(this, { targets: halo, alpha: 0.2, duration: 700 });
     }
 
     // Нажатие: зона поверх кружка.

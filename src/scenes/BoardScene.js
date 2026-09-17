@@ -14,6 +14,7 @@ import {
   addBlock,
 } from './textures.js';
 import { addText } from './ui.js';
+import { loopTween, reducedMotion } from './motion.js';
 
 // Общая часть игровых экранов: поле, лоток, перетаскивание, подсветка, анимации.
 // Правила («Классика», «Приключение») задаются наследниками через хуки:
@@ -141,13 +142,11 @@ export class BoardScene extends Phaser.Scene {
       const body = this.add.container(0, 0);
       const outer = this.add.container(x, y, [body]).setDepth(5);
       // Едва заметное «дыхание» — сильное покачивание рядом с пальцем выглядит как дрожание.
-      this.tweens.add({
+      loopTween(this, {
         targets: body,
         y: -2,
         duration: 1800,
         delay: slot * 250,
-        yoyo: true,
-        repeat: -1,
         ease: 'Sine.easeInOut',
       });
       this.add
@@ -406,6 +405,7 @@ export class BoardScene extends Phaser.Scene {
 
   // Мягкий «вдох» камеры на комбо вместо тряски.
   pulseCamera(lines) {
+    if (reducedMotion) return;
     const camera = this.cameras.main;
     this.tweens.killTweensOf(camera);
     camera.setZoom(1);

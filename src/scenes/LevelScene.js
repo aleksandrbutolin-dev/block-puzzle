@@ -103,7 +103,7 @@ export class LevelScene extends BoardScene {
     panel.fillRoundedRect(40, 96, 170, 110, 28);
     panel.lineStyle(4, 0xffd9a0, 1);
     panel.strokeRoundedRect(40, 96, 170, 110, 28);
-    addText(this, 125, 128, 'Ходы', 26, { color: THEME.textMuted });
+    addText(this, 125, 130, 'Ходы', 30, { color: THEME.textMuted });
     this.movesText = addText(this, 125, 175, '', 46);
 
     // Цели
@@ -120,7 +120,7 @@ export class LevelScene extends BoardScene {
     this.goalViews = goals.map((goal, i) => {
       const step = width / goals.length;
       const x = left + step * i + step / 2;
-      addText(this, x, 126, GOAL_LABELS[goal.type], 24, { color: THEME.textMuted });
+      addText(this, x, 128, GOAL_LABELS[goal.type], 30, { color: THEME.textMuted });
       const icon = this.goalIcon(goal.type, x - 46, 172);
       const text = addText(this, x + 22, 172, '', 36);
       return { index: i, type: goal.type, text, icon };
@@ -143,7 +143,8 @@ export class LevelScene extends BoardScene {
     for (const { index, text } of this.goalViews) {
       const goal = this.state.goals[index];
       const done = goal.progress >= goal.target;
-      text.setText(done ? `${goal.target} ✓` : `${goal.progress}/${goal.target}`);
+      // Готовую цель показываем цветом и полным счётом, без текстового значка «галочка».
+      text.setText(`${goal.progress}/${goal.target}`);
       text.setColor(done ? THEME.green : THEME.text);
     }
   }

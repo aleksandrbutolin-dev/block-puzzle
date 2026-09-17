@@ -9,11 +9,13 @@ import {
   addSoundButton,
   addCoinCounter,
   flyCoins,
+  addStarCount,
 } from './ui.js';
 import { getProgress, takeCheckInReward } from '../meta/store.js';
 import { STREAK_REWARDS, isTaskDone, currentLevel, totalStars } from '../meta/progress.js';
 import { LEVELS_TOTAL } from '../core/levels.js';
 import { playSound } from '../platform/audio.js';
+import { loopTween, reducedMotion } from './motion.js';
 
 // Цвета блоков в логотипе.
 const LOGO_BLOCKS = [0, 1, 2, 3, 4, 5, 6];
@@ -45,17 +47,11 @@ export class MenuScene extends Phaser.Scene {
       () => this.scene.start('Map'),
       { width: 500, height: 140, fontSize: 52 },
     );
-    this.tweens.add({
-      targets: play,
-      scale: 1.04,
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
-    addText(this, GAME_WIDTH / 2, 630, `Уровень ${level} · ★ ${totalStars(progress)}`, 30, {
+    loopTween(this, { targets: play, scale: 1.04, duration: 700, ease: 'Sine.easeInOut' });
+    const levelLabel = addText(this, GAME_WIDTH / 2 - 60, 632, `Уровень ${level}`, 30, {
       color: THEME.textMuted,
     });
+    addStarCount(this, levelLabel.x + levelLabel.width / 2 + 40, 632, totalStars(progress), 32);
 
     addButton(this, GAME_WIDTH / 2, 710, 'Классика', () => this.scene.start('Game'), {
       width: 360,
@@ -102,32 +98,20 @@ export class MenuScene extends Phaser.Scene {
       const block = addBlock(this, x, 190, size, color);
       const base = block.scale;
       block.setScale(0);
-      this.tweens.chain({
+      this.tweens.add({ targets: block, scale: base, duration: 400, delay: 100 + i * 70, ease: 'Back.easeOut' });
+      loopTween(this, {
         targets: block,
-        tweens: [
-          { scale: base, duration: 400, delay: 100 + i * 70, ease: 'Back.easeOut' },
-          {
-            y: 175,
-            duration: 500,
-            delay: i * 90,
-            yoyo: true,
-            repeat: -1,
-            repeatDelay: 1800,
-            ease: 'Sine.easeInOut',
-          },
-        ],
+        y: 175,
+        duration: 500,
+        delay: 500 + i * 90,
+        repeatDelay: 1800,
+        ease: 'Sine.easeInOut',
       });
     });
     const title = addText(this, GAME_WIDTH / 2, 320, 'Блок-пазл', 104);
     title.setAngle(-3);
-    this.tweens.add({
-      targets: title,
-      angle: 3,
-      duration: 1600,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    loopTween(this, { targets: title, angle: 3, duration: 1600, ease: 'Sine.easeInOut' });
+    if (reducedMotion) title.setAngle(0);
   }
 
   // Ряд из 7 дней серии: пройденные — золотые, сегодняшний — крупнее.
@@ -157,15 +141,9 @@ export class MenuScene extends Phaser.Scene {
         color: done ? '#7a3a00' : '#c9d2ff',
         stroke: null,
       });
-      addText(this, x, y + 72, `${day}`, 24, { color: done ? THEME.gold : '#8f9bd6', stroke: null });
+      addText(this, x, y + 74, `${day}`, 30, { color: done ? THEME.gold : '#8f9bd6', stroke: null });
       if (isToday) {
-        this.tweens.add({
-          targets: circle,
-          alpha: 0.75,
-          duration: 600,
-          yoyo: true,
-          repeat: -1,
-        });
+        loopTween(this, { targets: circle, alpha: 0.75, duration: 600 });
       }
     });
   }
@@ -174,7 +152,7 @@ export class MenuScene extends Phaser.Scene {
     const badge = this.add.container(button.x + 130, button.y - 50).setDepth(25);
     const circle = this.add.circle(0, 0, 26, 0xff3b4e).setStrokeStyle(4, 0xffffff);
     badge.add([circle, addText(this, 0, -1, String(count), 30, { stroke: null })]);
-    this.tweens.add({ targets: badge, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
+    loopTween(this, { targets: badge, scale: 1.15, duration: 500 });
   }
 
   // Окно «Награда за вход».
@@ -226,7 +204,7 @@ export class MenuScene extends Phaser.Scene {
     shade.setAlpha(0);
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });
     this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 400, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: coin, angle: 8, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    loopTween(this, { targets: coin, angle: 8, duration: 500, ease: 'Sine.easeInOut' });
     this.time.delayedCall(250, () => playSound('record'));
   }
 }

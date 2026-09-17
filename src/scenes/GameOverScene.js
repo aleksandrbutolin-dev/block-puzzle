@@ -4,6 +4,7 @@ import { THEME } from './theme.js';
 import { TEX } from './textures.js';
 import { addText, addButton } from './ui.js';
 import { playSound } from '../platform/audio.js';
+import { loopTween, reducedMotion } from './motion.js';
 
 const PANEL_W = 560;
 const PANEL_H = 620;
@@ -103,14 +104,7 @@ export class GameOverScene extends Phaser.Scene {
 
     if (isNewBest) {
       this.time.delayedCall(450, () => playSound('fanfare'));
-      this.tweens.add({
-        targets: bestText,
-        scale: 1.12,
-        duration: 500,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+      loopTween(this, { targets: bestText, scale: 1.12, duration: 500, ease: 'Sine.easeInOut' });
     }
   }
 

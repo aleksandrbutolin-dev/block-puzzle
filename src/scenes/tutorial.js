@@ -6,7 +6,7 @@ import { createBoard } from '../core/board.js';
 import { generateSet } from '../core/pieces.js';
 import { THEME } from './theme.js';
 import { TEX, HAND_TIP } from './textures.js';
-import { addText } from './ui.js';
+import { addText, addTextButton } from './ui.js';
 import { getProgress, setProgress } from '../meta/store.js';
 import { completeTutorial } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
@@ -51,10 +51,12 @@ export class Tutorial {
     this.bannerText = addText(scene, 0, 0, '', 32, { lineSpacing: 2 });
     this.banner.add([bg, this.bannerText]);
 
-    this.skip = addText(scene, GAME_WIDTH / 2, 1238, 'Пропустить обучение', 28, { color: THEME.textMuted })
-      .setDepth(40)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerup', () => this.finish(false));
+    const skip = addTextButton(scene, GAME_WIDTH / 2, 1238, 'Пропустить обучение', 30, () =>
+      this.finish(false),
+    );
+    skip.text.setColor(THEME.textMuted).setDepth(40);
+    skip.zone.setDepth(40);
+    this.skip = skip;
 
     this.nextStep();
   }
@@ -201,7 +203,8 @@ export class Tutorial {
     this.stopHand();
     setProgress(completeTutorial(getProgress()));
     scene.tutorial = null;
-    this.skip.destroy();
+    this.skip.text.destroy();
+    this.skip.zone.destroy();
 
     // Счёт показываем только когда подсказка исчезнет, чтобы они не наложились.
     const showScore = () => {
