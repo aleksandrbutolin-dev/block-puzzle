@@ -33,7 +33,7 @@ export class MenuScene extends Phaser.Scene {
     addSoundButton(this);
 
     this.createLogo();
-    addText(this, GAME_WIDTH / 2, 412, `Рекорд в «Классике»: ${progress.best}`, 30, {
+    addText(this, GAME_WIDTH / 2, 436, `Рекорд в «Классике»: ${progress.best}`, 30, {
       color: THEME.textMuted,
     });
 
@@ -108,7 +108,7 @@ export class MenuScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
     });
-    const title = addText(this, GAME_WIDTH / 2, 320, 'Блок-пазл', 104);
+    const title = addText(this, GAME_WIDTH / 2, 312, 'Блок-пазл', 100);
     title.setAngle(-3);
     loopTween(this, { targets: title, angle: 3, duration: 1600, ease: 'Sine.easeInOut' });
     if (reducedMotion) title.setAngle(0);

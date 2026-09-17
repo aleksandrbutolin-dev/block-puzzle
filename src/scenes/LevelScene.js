@@ -24,6 +24,10 @@ import { BoardScene, BOARD_X, BOARD_Y, BOARD_PX, CELL, cellCenter } from './Boar
 // Подписи целей.
 const GOAL_LABELS = { score: 'Очки', lines: 'Линии', gems: 'Кристаллы', ice: 'Лёд' };
 
+// Шапка: две карточки одной высоты под заголовком уровня.
+const HUD_TOP = 88;
+const HUD_H = 124;
+
 // «Приключение»: уровень с целями и лимитом ходов.
 export class LevelScene extends BoardScene {
   constructor() {
@@ -137,29 +141,29 @@ export class LevelScene extends BoardScene {
     // Ходы
     const panel = this.add.graphics();
     panel.fillStyle(0x1e2958, 0.9);
-    panel.fillRoundedRect(40, 96, 170, 110, 28);
+    panel.fillRoundedRect(40, HUD_TOP, 170, HUD_H, 28);
     panel.lineStyle(4, 0xffd9a0, 1);
-    panel.strokeRoundedRect(40, 96, 170, 110, 28);
-    addText(this, 125, 130, 'Ходы', 30, { color: THEME.textMuted });
-    this.movesText = addText(this, 125, 175, '', 46);
+    panel.strokeRoundedRect(40, HUD_TOP, 170, HUD_H, 28);
+    addText(this, 125, HUD_TOP + 30, 'Ходы', 30, { color: THEME.textMuted });
+    this.movesText = addText(this, 125, HUD_TOP + 92, '', 44);
 
     // Цели
     const goals = this.state.goals;
-    const width = 440;
+    const width = 430;
     const left = GAME_WIDTH - 40 - width;
     const goalPanel = this.add.graphics();
     goalPanel.fillStyle(0x1e2958, 0.9);
-    goalPanel.fillRoundedRect(left, 96, width, 110, 28);
+    goalPanel.fillRoundedRect(left, HUD_TOP, width, HUD_H, 28);
     goalPanel.lineStyle(4, 0xffd9a0, 1);
-    goalPanel.strokeRoundedRect(left, 96, width, 110, 28);
+    goalPanel.strokeRoundedRect(left, HUD_TOP, width, HUD_H, 28);
 
     // Состояние уровня пересоздаётся каждым ходом, поэтому цели ищем по индексу, а не по ссылке.
     this.goalViews = goals.map((goal, i) => {
       const step = width / goals.length;
       const x = left + step * i + step / 2;
-      addText(this, x, 128, GOAL_LABELS[goal.type], 30, { color: THEME.textMuted });
-      const icon = this.goalIcon(goal.type, x - 46, 172);
-      const text = addText(this, x + 22, 172, '', 36);
+      addText(this, x, HUD_TOP + 34, GOAL_LABELS[goal.type], 30, { color: THEME.textMuted });
+      const icon = this.goalIcon(goal.type, x - 48, HUD_TOP + 92);
+      const text = addText(this, x + 24, HUD_TOP + 92, '', 38);
       return { index: i, type: goal.type, text, icon };
     });
     this.updateHud();

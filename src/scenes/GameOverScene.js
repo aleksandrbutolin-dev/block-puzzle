@@ -43,8 +43,8 @@ export class GameOverScene extends Phaser.Scene {
     const title = addText(this, 0, -PANEL_H / 2, 'Игра окончена', 50, { stroke: '#8a2358' });
 
     const muted = { color: THEME.panelMuted, stroke: null };
-    const scoreLabel = addText(this, 0, -185, 'Счёт', 36, muted);
-    const scoreText = addText(this, 0, -100, '0', 120, { color: THEME.panelText, stroke: null });
+    const scoreLabel = addText(this, 0, -196, 'Счёт', 32, muted);
+    const scoreText = addText(this, 0, -84, '0', 104, { color: THEME.panelText, stroke: null });
     const bestText = isNewBest
       ? addText(this, 0, 20, 'Новый рекорд!', 44, { color: THEME.gold, stroke: '#b5651d' })
       : addText(this, 0, 20, `Рекорд: ${best}`, 40, muted);

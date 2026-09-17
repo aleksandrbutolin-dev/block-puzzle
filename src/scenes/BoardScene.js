@@ -95,8 +95,8 @@ export class BoardScene extends Phaser.Scene {
     ids.forEach((id, i) => {
       const x = GAME_WIDTH / 2 + (i - (ids.length - 1) / 2) * 150;
       const icon = addIconButton(this, x, BOOSTER_Y, TEX[id], () => this.tapBooster(id), 88);
-      const badge = this.add.circle(x + 32, BOOSTER_Y - 30, 21, 0xff3b4e).setStrokeStyle(4, 0xffffff);
-      const count = addText(this, badge.x, badge.y - 1, '0', 26, { stroke: null });
+      const badge = this.add.circle(x + 50, BOOSTER_Y - 46, 20, 0xff3b4e).setStrokeStyle(4, 0xffffff);
+      const count = addText(this, badge.x, badge.y - 1, '0', 28, { stroke: null });
       this.boosterViews[id] = { icon, badge, count };
     });
     this.updateBoosters();

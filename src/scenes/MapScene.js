@@ -116,8 +116,8 @@ export class MapScene extends Phaser.Scene {
   createChest(chapter, x, y, progress) {
     const done = isChapterDone(progress, chapter);
     const claimed = isChapterClaimed(progress, chapter.id);
-    const chest = this.add.image(x, y, TEX.chest(claimed)).setDisplaySize(96, 96);
-    const label = addText(this, x, y + 64, `${chapter.reward.coins}`, 30, { color: THEME.gold });
+    const chest = this.add.image(x, y, TEX.chest(claimed)).setDisplaySize(92, 92);
+    const label = addText(this, x, y + 72, `${chapter.reward.coins}`, 30, { color: THEME.gold });
     this.path.add([chest, label]);
 
     if (!done) {

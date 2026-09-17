@@ -65,8 +65,8 @@ export class GameScene extends BoardScene {
     addBackdrop(this);
     this.buildBoard();
 
-    this.bestText = addText(this, GAME_WIDTH / 2, 52, '', 30);
-    this.scoreText = addText(this, GAME_WIDTH / 2, 142, '0', 104);
+    this.bestText = addText(this, GAME_WIDTH / 2, 42, '', 30);
+    this.scoreText = addText(this, GAME_WIDTH / 2, 138, '0', 88);
     this.updateBestText();
 
     addSoundButton(this);

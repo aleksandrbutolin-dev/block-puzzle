@@ -33,8 +33,8 @@ export class TasksScene extends Phaser.Scene {
     this.coins = addCoinCounter(this, GAME_WIDTH / 2 - 95, 58);
     this.coins.setValue(getProgress().coins);
 
-    addText(this, GAME_WIDTH / 2, 175, 'Задания дня', 70);
-    this.timerText = addText(this, GAME_WIDTH / 2, 250, '', 30, { color: THEME.textMuted });
+    addText(this, GAME_WIDTH / 2, 168, 'Задания дня', 66);
+    this.timerText = addText(this, GAME_WIDTH / 2, 258, '', 30, { color: THEME.textMuted });
     this.updateTimer();
     this.time.addEvent({ delay: 1000, loop: true, callback: () => this.updateTimer() });
 
@@ -103,8 +103,8 @@ export class TasksScene extends Phaser.Scene {
 
     // Награда и кнопка
     const rightX = CARD_W - 105;
-    const coin = this.add.image(rightX - 30, 52, TEX.coin).setDisplaySize(48, 48);
-    const reward = addText(this, rightX + 22, 52, `${task.reward}`, 38, { color: THEME.gold });
+    const coin = this.add.image(rightX - 36, 52, TEX.coin).setDisplaySize(48, 48);
+    const reward = addText(this, rightX + 28, 52, `${task.reward}`, 36, { color: THEME.gold });
     card.add([coin, reward]);
 
     if (task.claimed) {

@@ -3,6 +3,9 @@
 
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME, BLOCK_ICONS } from './theme.js';
+import { ICONS, ICON_PX, HAND_TIP } from './icons.js';
+
+export { HAND_TIP };
 
 // Текущая тема блоков (id из SKINS). Меняется через setSkin().
 let currentSkin = 'toys';
@@ -337,87 +340,6 @@ const BLOCK_DRAWERS = { toys: drawBlock, crystals: drawCrystal };
 
 // ---------- Лёд и кристаллы (уровни «Приключения») ----------
 
-// Ледяная корка поверх блока: чем больше слоёв, тем плотнее.
-function drawIce(ctx, S, layers) {
-  const inset = 4;
-  const w = S - inset * 2;
-  const radius = S * 0.24;
-  ctx.save();
-  roundRect(ctx, inset, inset, w, w, radius);
-  ctx.clip();
-
-  const fill = ctx.createLinearGradient(0, inset, 0, inset + w);
-  const alpha = layers > 1 ? 0.82 : 0.6;
-  fill.addColorStop(0, `rgba(235, 250, 255, ${alpha})`);
-  fill.addColorStop(1, `rgba(150, 215, 245, ${alpha})`);
-  ctx.fillStyle = fill;
-  ctx.fillRect(0, 0, S, S);
-
-  // Грани льда
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.lineWidth = layers > 1 ? 5 : 4;
-  ctx.lineCap = 'round';
-  const cracks = layers > 1
-    ? [[0.15, 0.2, 0.5, 0.45], [0.5, 0.45, 0.85, 0.3], [0.5, 0.45, 0.45, 0.85], [0.2, 0.75, 0.5, 0.62]]
-    : [[0.2, 0.3, 0.55, 0.55], [0.55, 0.55, 0.8, 0.45]];
-  for (const [x1, y1, x2, y2] of cracks) {
-    ctx.beginPath();
-    ctx.moveTo(x1 * S, y1 * S);
-    ctx.lineTo(x2 * S, y2 * S);
-    ctx.stroke();
-  }
-
-  // Блик
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.beginPath();
-  ctx.ellipse(S * 0.32, S * 0.26, S * 0.16, S * 0.08, -0.6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.lineWidth = 4;
-  roundRect(ctx, inset + 2, inset + 2, w - 4, w - 4, radius - 2);
-  ctx.stroke();
-}
-
-// Кристалл поверх блока — цель «собери кристаллы».
-function drawGem(ctx, S) {
-  const cx = S / 2;
-  const cy = S / 2;
-  const r = S * 0.3;
-  const points = [
-    [cx, cy - r],
-    [cx + r * 0.85, cy - r * 0.15],
-    [cx + r * 0.5, cy + r],
-    [cx - r * 0.5, cy + r],
-    [cx - r * 0.85, cy - r * 0.15],
-  ];
-  ctx.beginPath();
-  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-  ctx.closePath();
-  ctx.fillStyle = '#7fe8ff';
-  ctx.fill();
-  ctx.strokeStyle = '#1a5f80';
-  ctx.lineWidth = S * 0.05;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  // Грани
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.lineWidth = S * 0.03;
-  ctx.beginPath();
-  ctx.moveTo(cx - r * 0.85, cy - r * 0.15);
-  ctx.lineTo(cx, cy + r * 0.1);
-  ctx.lineTo(cx + r * 0.85, cy - r * 0.15);
-  ctx.moveTo(cx, cy - r);
-  ctx.lineTo(cx, cy + r * 0.1);
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.beginPath();
-  ctx.ellipse(cx - r * 0.3, cy - r * 0.35, r * 0.16, r * 0.09, -0.5, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 // Мягкая тень под фигурой в руке.
 function drawBlockShadow(ctx, S) {
   for (let i = 0; i < 6; i++) {
@@ -605,337 +527,6 @@ function drawCloud(ctx, W, H) {
   ctx.fill();
 }
 
-// Золотая монета со звездой.
-function drawCoin(ctx, S) {
-  const c = S / 2;
-  const r = S / 2 - 4;
-  ctx.fillStyle = '#b86e12';
-  ctx.beginPath();
-  ctx.arc(c, c + 3, r, 0, Math.PI * 2);
-  ctx.fill();
-  const face = ctx.createLinearGradient(0, 0, 0, S);
-  face.addColorStop(0, '#fff2a8');
-  face.addColorStop(0.5, '#ffc93a');
-  face.addColorStop(1, '#f09a16');
-  ctx.fillStyle = face;
-  ctx.beginPath();
-  ctx.arc(c, c, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#d98010';
-  ctx.lineWidth = S * 0.05;
-  ctx.beginPath();
-  ctx.arc(c, c, r * 0.74, 0, Math.PI * 2);
-  ctx.stroke();
-  drawIcon(ctx, 'star', c, c, r * 0.5, 0xf0a020);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.beginPath();
-  ctx.ellipse(c - r * 0.45, c - r * 0.5, r * 0.18, r * 0.1, -0.7, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Круглая подложка для значков-кнопок.
-function drawBadge(ctx, S) {
-  const c = S / 2;
-  ctx.fillStyle = THEME.css.boardBottom;
-  ctx.beginPath();
-  ctx.arc(c, c + 4, c - 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = THEME.css.frameLight;
-  ctx.beginPath();
-  ctx.arc(c, c, c - 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = THEME.css.boardTop;
-  ctx.beginPath();
-  ctx.arc(c, c, c - 12, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Динамик + волны или крестик.
-function drawSoundIcon(ctx, S, on) {
-  drawBadge(ctx, S);
-  const c = S / 2;
-  const u = S / 96;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(c - 22 * u, c - 9 * u);
-  ctx.lineTo(c - 12 * u, c - 9 * u);
-  ctx.lineTo(c + 2 * u, c - 22 * u);
-  ctx.lineTo(c + 2 * u, c + 22 * u);
-  ctx.lineTo(c - 12 * u, c + 9 * u);
-  ctx.lineTo(c - 22 * u, c + 9 * u);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 5 * u;
-  ctx.lineCap = 'round';
-  if (on) {
-    for (const r of [12, 22]) {
-      ctx.beginPath();
-      ctx.arc(c + 4 * u, c, r * u, -0.8, 0.8);
-      ctx.stroke();
-    }
-  } else {
-    ctx.strokeStyle = '#ff6b7a';
-    ctx.beginPath();
-    ctx.moveTo(c + 10 * u, c - 10 * u);
-    ctx.lineTo(c + 26 * u, c + 10 * u);
-    ctx.moveTo(c + 26 * u, c - 10 * u);
-    ctx.lineTo(c + 10 * u, c + 10 * u);
-    ctx.stroke();
-  }
-}
-
-function drawHomeIcon(ctx, S) {
-  drawBadge(ctx, S);
-  const c = S / 2;
-  const u = S / 96;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(c, c - 22 * u);
-  ctx.lineTo(c + 24 * u, c);
-  ctx.lineTo(c + 16 * u, c);
-  ctx.lineTo(c + 16 * u, c + 20 * u);
-  ctx.lineTo(c - 16 * u, c + 20 * u);
-  ctx.lineTo(c - 16 * u, c);
-  ctx.lineTo(c - 24 * u, c);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = THEME.css.boardTop;
-  roundRect(ctx, c - 5 * u, c + 6 * u, 10 * u, 14 * u, 3 * u);
-  ctx.fill();
-}
-
-// Замок на закрытом уровне карты.
-function drawLock(ctx, S) {
-  const u = S / 96;
-  ctx.strokeStyle = '#d8d2ea';
-  ctx.lineWidth = 11 * u;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.arc(S / 2, 44 * u, 19 * u, Math.PI, 0);
-  ctx.stroke();
-
-  ctx.fillStyle = '#6f6890';
-  roundRect(ctx, 22 * u, 44 * u, 52 * u, 44 * u, 12 * u);
-  ctx.fill();
-  ctx.fillStyle = '#9a93b5';
-  roundRect(ctx, 26 * u, 48 * u, 44 * u, 32 * u, 10 * u);
-  ctx.fill();
-  ctx.fillStyle = '#4a4468';
-  ctx.beginPath();
-  ctx.arc(S / 2, 64 * u, 7 * u, 0, Math.PI * 2);
-  ctx.fill();
-  roundRect(ctx, S / 2 - 3 * u, 64 * u, 6 * u, 12 * u, 3 * u);
-  ctx.fill();
-}
-
-// Сундук с наградой за главу.
-function drawChest(ctx, S, open) {
-  const u = S / 96;
-  const body = () => {
-    ctx.fillStyle = '#a2652c';
-    roundRect(ctx, 14 * u, 46 * u, 68 * u, 38 * u, 8 * u);
-    ctx.fill();
-    ctx.fillStyle = '#c47f3b';
-    roundRect(ctx, 18 * u, 50 * u, 60 * u, 30 * u, 6 * u);
-    ctx.fill();
-    ctx.fillStyle = '#ffc93a';
-    roundRect(ctx, 42 * u, 52 * u, 12 * u, 26 * u, 4 * u);
-    ctx.fill();
-  };
-  const lid = (dy, angle) => {
-    ctx.save();
-    ctx.translate(48 * u, (46 + dy) * u);
-    ctx.rotate(angle);
-    ctx.fillStyle = '#8a5322';
-    roundRect(ctx, -34 * u, -22 * u, 68 * u, 26 * u, 10 * u);
-    ctx.fill();
-    ctx.fillStyle = '#b06c2c';
-    roundRect(ctx, -30 * u, -18 * u, 60 * u, 18 * u, 8 * u);
-    ctx.fill();
-    ctx.restore();
-  };
-
-  if (open) {
-    // Открытый: крышка откинута, внутри монеты.
-    lid(-6 * u, -0.5);
-    body();
-    ctx.fillStyle = '#ffd23f';
-    for (const [x, y, r] of [[34, 50, 9], [48, 46, 10], [62, 50, 9]]) {
-      ctx.beginPath();
-      ctx.arc(x * u, y * u, r * u, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    body();
-    lid(0, 0);
-    ctx.fillStyle = '#ffc93a';
-    ctx.beginPath();
-    ctx.arc(48 * u, 46 * u, 7 * u, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-// Молоток: убрать одну клетку.
-function drawHammerIcon(ctx, S) {
-  drawBadge(ctx, S);
-  const u = S / 96;
-  ctx.save();
-  ctx.translate(S / 2, S / 2);
-  ctx.rotate(-0.5);
-  // Рукоять
-  ctx.fillStyle = '#c47f3b';
-  roundRect(ctx, -6 * u, -6 * u, 12 * u, 36 * u, 6 * u);
-  ctx.fill();
-  // Боёк
-  ctx.fillStyle = '#d8d2ea';
-  roundRect(ctx, -26 * u, -30 * u, 52 * u, 26 * u, 8 * u);
-  ctx.fill();
-  ctx.fillStyle = '#a49dc4';
-  roundRect(ctx, -26 * u, -12 * u, 52 * u, 8 * u, 4 * u);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  roundRect(ctx, -20 * u, -26 * u, 16 * u, 7 * u, 3 * u);
-  ctx.fill();
-  ctx.restore();
-}
-
-// Обмен: заменить фигуры в лотке.
-function drawSwapIcon(ctx, S) {
-  drawBadge(ctx, S);
-  const u = S / 96;
-  const c = S / 2;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 8 * u;
-  ctx.lineCap = 'round';
-  // Две дуги по кругу
-  ctx.beginPath();
-  ctx.arc(c, c, 22 * u, Math.PI * 0.15, Math.PI * 0.95);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(c, c, 22 * u, Math.PI * 1.15, Math.PI * 1.95);
-  ctx.stroke();
-  // Стрелки на концах
-  ctx.fillStyle = '#ffffff';
-  const arrow = (x, y, dir) => {
-    ctx.beginPath();
-    ctx.moveTo(x, y - 9 * u * dir);
-    ctx.lineTo(x + 11 * u * dir, y);
-    ctx.lineTo(x, y + 9 * u * dir);
-    ctx.closePath();
-    ctx.fill();
-  };
-  arrow(c + 22 * u, c - 4 * u, 1);
-  arrow(c - 22 * u, c + 4 * u, -1);
-}
-
-// Значок «видео за награду»: экран с треугольником воспроизведения.
-function drawVideoIcon(ctx, S) {
-  const u = S / 96;
-  ctx.fillStyle = '#ffffff';
-  roundRect(ctx, 8 * u, 16 * u, 80 * u, 64 * u, 16 * u);
-  ctx.fill();
-  ctx.fillStyle = '#2f9a48';
-  ctx.beginPath();
-  ctx.moveTo(38 * u, 32 * u);
-  ctx.lineTo(64 * u, 48 * u);
-  ctx.lineTo(38 * u, 64 * u);
-  ctx.closePath();
-  ctx.fill();
-}
-
-// Мультяшная рука-указатель для обучения. Кончик пальца — в точке (0.42, 0.06) текстуры.
-export const HAND_TIP = { x: 0.42, y: 0.06 };
-
-function drawHand(ctx, S) {
-  const u = S / 128;
-  const outline = '#3a1d5c';
-  const skin = '#ffe0c7';
-  const shadowSkin = '#f4b996';
-
-  // Указательный палец, ладонь с поджатыми пальцами, большой палец.
-  const parts = [
-    [44, 6, 26, 70, 13],
-    [30, 56, 70, 60, 22],
-    [16, 66, 34, 22, 11],
-  ].map((part) => part.map((v) => v * u));
-
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 10 * u;
-  ctx.strokeStyle = outline;
-  // Сначала контур всех частей, потом заливка — контур остаётся только снаружи.
-  for (const part of parts) {
-    roundRect(ctx, ...part);
-    ctx.stroke();
-  }
-  ctx.fillStyle = skin;
-  for (const part of parts) {
-    roundRect(ctx, ...part);
-    ctx.fill();
-  }
-
-  // Складки поджатых пальцев и тень ладони
-  ctx.strokeStyle = shadowSkin;
-  ctx.lineWidth = 4 * u;
-  ctx.lineCap = 'round';
-  for (const x of [70, 84]) {
-    ctx.beginPath();
-    ctx.moveTo(x * u, 62 * u);
-    ctx.lineTo(x * u, 80 * u);
-    ctx.stroke();
-  }
-  ctx.fillStyle = 'rgba(244, 185, 150, 0.6)';
-  roundRect(ctx, 34 * u, 96 * u, 62 * u, 16 * u, 8 * u);
-  ctx.fill();
-  // Блик на пальце
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  roundRect(ctx, 50 * u, 12 * u, 6 * u, 22 * u, 3 * u);
-  ctx.fill();
-}
-
-// Большие значки для кнопок меню (без подложки).
-function drawTasksIcon(ctx, S) {
-  const u = S / 96;
-  ctx.fillStyle = '#fff4e0';
-  roundRect(ctx, 18 * u, 10 * u, 60 * u, 76 * u, 12 * u);
-  ctx.fill();
-  ctx.fillStyle = '#e0a060';
-  roundRect(ctx, 34 * u, 4 * u, 28 * u, 14 * u, 6 * u);
-  ctx.fill();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  for (let i = 0; i < 3; i++) {
-    const y = (32 + i * 18) * u;
-    ctx.strokeStyle = '#46cf3c';
-    ctx.lineWidth = 6 * u;
-    ctx.beginPath();
-    ctx.moveTo(26 * u, y);
-    ctx.lineTo(31 * u, y + 5 * u);
-    ctx.lineTo(39 * u, y - 5 * u);
-    ctx.stroke();
-    ctx.strokeStyle = '#b89a86';
-    ctx.lineWidth = 5 * u;
-    ctx.beginPath();
-    ctx.moveTo(47 * u, y);
-    ctx.lineTo(68 * u, y);
-    ctx.stroke();
-  }
-}
-
-function drawCollectionIcon(ctx, S) {
-  const u = S / 96;
-  const colors = [0xf5333f, 0xffd21a, 0x14c8c4, 0xff55c8];
-  colors.forEach((color, i) => {
-    const x = (i % 2) * 40 * u + 8 * u;
-    const y = Math.floor(i / 2) * 40 * u + 8 * u;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale((40 * u) / 128, (40 * u) / 128);
-    drawBlock(ctx, 128, color, BLOCK_ICONS[[0, 2, 4, 6][i]]);
-    ctx.restore();
-  });
-}
 
 // ---------- Частицы ----------
 
@@ -946,16 +537,6 @@ function drawSpark(ctx, S) {
   g.addColorStop(1, 'rgba(255, 255, 255, 0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
-}
-
-function drawStar(ctx, S) {
-  iconPath(ctx, 'star', S / 2, S / 2 - S * 0.04, S * 0.46);
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = S * 0.08;
-  ctx.strokeStyle = '#ffffff';
-  ctx.fillStyle = '#ffffff';
-  ctx.stroke();
-  ctx.fill();
 }
 
 // ---------- Публичное API ----------
@@ -971,29 +552,33 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.blockShadow, BLOCK_PX, BLOCK_PX, (ctx, S) => drawBlockShadow(ctx, S));
   makeCanvas(scene, TEX.ghostFrame, BLOCK_PX, BLOCK_PX, (ctx, S) => drawGhostFrame(ctx, S));
   makeCanvas(scene, TEX.cell, BLOCK_PX, BLOCK_PX, (ctx, S) => drawCell(ctx, S));
+  makeCanvas(scene, TEX.ice(1), BLOCK_PX, BLOCK_PX, (ctx, S) => ICONS.ice(ctx, S, 1));
+  makeCanvas(scene, TEX.ice(2), BLOCK_PX, BLOCK_PX, (ctx, S) => ICONS.ice(ctx, S, 2));
+
   const boardSize = boardPx + (BOARD_TEX_PADDING + BOARD_TEX_MARGIN) * 2;
   makeCanvas(scene, TEX.board, boardSize, boardSize, drawBoard);
   makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
-  makeCanvas(scene, TEX.ice(1), BLOCK_PX, BLOCK_PX, (ctx, S) => drawIce(ctx, S, 1));
-  makeCanvas(scene, TEX.ice(2), BLOCK_PX, BLOCK_PX, (ctx, S) => drawIce(ctx, S, 2));
-  makeCanvas(scene, TEX.gem, BLOCK_PX, BLOCK_PX, (ctx, S) => drawGem(ctx, S));
   makeCanvas(scene, TEX.cloud, 260, 150, drawCloud);
-  makeCanvas(scene, TEX.coin, 96, 96, (ctx, S) => drawCoin(ctx, S));
-  makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
-  makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
-  makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
-  makeCanvas(scene, TEX.lock, 96, 96, (ctx, S) => drawLock(ctx, S));
-  makeCanvas(scene, TEX.chest(false), 96, 96, (ctx, S) => drawChest(ctx, S, false));
-  makeCanvas(scene, TEX.chest(true), 96, 96, (ctx, S) => drawChest(ctx, S, true));
-  makeCanvas(scene, TEX.hammer, 96, 96, (ctx, S) => drawHammerIcon(ctx, S));
-  makeCanvas(scene, TEX.swap, 96, 96, (ctx, S) => drawSwapIcon(ctx, S));
-  makeCanvas(scene, TEX.video, 96, 96, (ctx, S) => drawVideoIcon(ctx, S));
-  makeCanvas(scene, TEX.hand, 128, 128, (ctx, S) => drawHand(ctx, S));
-  makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));
-  makeCanvas(scene, TEX.collection, 96, 96, (ctx, S) => drawCollectionIcon(ctx, S));
-  makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
-  makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
+
+  // Значки — общий набор из icons.js.
+  const icon = (key, draw) => makeCanvas(scene, key, ICON_PX, ICON_PX, draw);
+  icon(TEX.home, ICONS.home);
+  icon(TEX.soundOn, ICONS.soundOn);
+  icon(TEX.soundOff, ICONS.soundOff);
+  icon(TEX.video, ICONS.video);
+  icon(TEX.hammer, ICONS.hammer);
+  icon(TEX.swap, ICONS.swap);
+  icon(TEX.lock, ICONS.lock);
+  icon(TEX.tasks, ICONS.tasks);
+  icon(TEX.coin, ICONS.coin);
+  icon(TEX.star, ICONS.star);
+  icon(TEX.gem, ICONS.gem);
+  icon(TEX.chest(false), (ctx, S) => ICONS.chest(ctx, S, false));
+  icon(TEX.chest(true), (ctx, S) => ICONS.chest(ctx, S, true));
+  icon(TEX.collection, (ctx, S) => ICONS.collection(ctx, S, drawBlock, THEME.blocks, BLOCK_ICONS));
+  icon(TEX.hand, ICONS.hand);
+  makeCanvas(scene, TEX.spark, 64, 64, (ctx, S) => drawSpark(ctx, S));
 }
 
 // Блок-картинка заданного экранного размера с центром в (x, y). skin — по умолчанию текущая тема.
