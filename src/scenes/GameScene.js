@@ -1,6 +1,15 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config.js';
-import { BOARD_SIZE, createBoard, place, findFullLines, applyMove, findDropTarget } from '../core/board.js';
+import {
+  BOARD_SIZE,
+  createBoard,
+  place,
+  findFullLines,
+  applyMove,
+  findDropTarget,
+  densestArea,
+  clearArea,
+} from '../core/board.js';
 import { generateSet, refillPiece, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
@@ -39,6 +48,9 @@ const TRAY_PAD = 14;
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
 
+// «Продолжить?» освобождает квадрат такого размера.
+const REVIVE_AREA = 4;
+
 // Плавность следования за пальцем: чем больше, тем плотнее фигура «прилипает».
 const FOLLOW_SHARPNESS = 28;
 
@@ -70,6 +82,7 @@ export class GameScene extends Phaser.Scene {
     this.placing = false; // фигура доезжает до клеток — новый захват ждёт
     this.returning = new Set(); // слоты, чьи фигуры летят обратно в лоток
     this.isOver = false;
+    this.revived = false; // «Продолжить?» уже использовано в этой партии
     this.scoreState = createScoreState();
     this.bestAtStart = getProgress().best;
     this.best = this.bestAtStart;
@@ -400,40 +413,10 @@ export class GameScene extends Phaser.Scene {
   animateClear(before, piece, row, col, lines) {
     // Цвет очищенной клетки: был на поле до хода или пришёл с фигурой.
     const placed = place(before, piece.cells, row, col, piece.color);
-    const base = this.blockScale;
     let index = 0;
-
     for (const [r, c] of lineCells(lines)) {
-      const { x, y } = cellCenter(r, c);
-      const color = placed[r][c];
-      const block = addBlock(this, x, y, CELL, color).setDepth(6);
       const delay = (Math.abs(r - row) + Math.abs(c - col)) * 28;
-      const withStar = index++ % 2 === 0;
-
-      // Подпрыгнуть → лопнуть с искрами.
-      this.tweens.chain({
-        targets: block,
-        tweens: [
-          {
-            y: y - 16,
-            scaleX: base * 1.18,
-            scaleY: base * 1.18,
-            duration: 130,
-            delay,
-            ease: 'Quad.easeOut',
-          },
-          {
-            y,
-            scaleX: 0,
-            scaleY: 0,
-            alpha: 0.4,
-            duration: 150,
-            ease: 'Back.easeIn',
-            onStart: () => this.burst(x, y - 10, color, withStar ? 1 : 0),
-            onComplete: () => block.destroy(),
-          },
-        ],
-      });
+      this.popBlock(r, c, placed[r][c], delay, index++ % 2 === 0);
     }
 
     // Светлая вспышка вдоль очищаемых линий.
@@ -443,6 +426,36 @@ export class GameScene extends Phaser.Scene {
     for (const c of lines.cols) {
       this.flashLine(cellCenter(0, c).x, BOARD_Y + BOARD_PX / 2, CELL, BOARD_PX);
     }
+  }
+
+  // Блок подпрыгивает и лопается с искрами (и звёздочкой, если withStar).
+  popBlock(r, c, color, delay, withStar) {
+    const { x, y } = cellCenter(r, c);
+    const base = this.blockScale;
+    const block = addBlock(this, x, y, CELL, color).setDepth(6);
+    this.tweens.chain({
+      targets: block,
+      tweens: [
+        {
+          y: y - 16,
+          scaleX: base * 1.18,
+          scaleY: base * 1.18,
+          duration: 130,
+          delay,
+          ease: 'Quad.easeOut',
+        },
+        {
+          y,
+          scaleX: 0,
+          scaleY: 0,
+          alpha: 0.4,
+          duration: 150,
+          ease: 'Back.easeIn',
+          onStart: () => this.burst(x, y - 10, color, withStar ? 1 : 0),
+          onComplete: () => block.destroy(),
+        },
+      ],
+    });
   }
 
   flashLine(x, y, width, height) {
@@ -606,38 +619,77 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Ходов нет: поле «засыпает», затем — «Продолжить?» (один раз за партию) или итог.
   endGame() {
     this.isOver = true;
-    const score = this.scoreState.score;
-    const isNewBest = score > this.bestAtStart;
-    const ended = recordGameEnd(getProgress(), { score });
-    setProgress(ended.progress);
-
-    // Поле «засыпает»: блоки по очереди тускнеют сверху вниз.
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        const view = this.blockViews[r][c];
-        if (!view.visible) continue;
-        this.tweens.add({
-          targets: view,
-          alpha: 0.45,
-          duration: 200,
-          delay: r * 45 + c * 15,
-        });
-      }
-    }
-
+    this.dimBoard(true);
     this.time.delayedCall(250, () => playSound('gameOver'));
 
     // Пауза, чтобы игрок увидел последний ход.
     this.time.delayedCall(800, () => {
-      this.scene.launch('GameOver', {
-        score,
-        best: this.best,
-        isNewBest,
-        coinsEarned: ended.coins,
-        tasksDone: ended.completed,
+      if (this.revived) {
+        this.finishGame();
+        return;
+      }
+      this.scene.launch('Continue', {
+        onContinue: () => this.revive(),
+        onGiveUp: () => this.finishGame(),
       });
+    });
+  }
+
+  finishGame() {
+    const score = this.scoreState.score;
+    const ended = recordGameEnd(getProgress(), { score });
+    setProgress(ended.progress);
+    this.scene.launch('GameOver', {
+      score,
+      best: this.best,
+      isNewBest: score > this.bestAtStart,
+      coinsEarned: ended.coins,
+      tasksDone: ended.completed,
+    });
+  }
+
+  // Блоки тускнеют сверху вниз (dim) или возвращают яркость.
+  dimBoard(dim) {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const view = this.blockViews[r][c];
+        this.tweens.killTweensOf(view);
+        this.tweens.add({
+          targets: view,
+          alpha: dim ? 0.45 : 1,
+          duration: 200,
+          delay: dim ? r * 45 + c * 15 : 0,
+        });
+      }
+    }
+  }
+
+  // Вторая попытка: самый заполненный квадрат 4×4 лопается, фигуры — новые.
+  revive() {
+    this.revived = true;
+    this.dimBoard(false);
+
+    const { row, col } = densestArea(this.board, REVIVE_AREA);
+    const before = this.board;
+    this.board = clearArea(this.board, row, col, REVIVE_AREA);
+    this.drawBoard();
+    for (let r = row; r < row + REVIVE_AREA; r++) {
+      for (let c = col; c < col + REVIVE_AREA; c++) {
+        if (before[r][c] === null) continue;
+        const delay = (Math.abs(r - row - 1.5) + Math.abs(c - col - 1.5)) * 40;
+        this.popBlock(r, c, before[r][c], delay, (r + c) % 2 === 0);
+      }
+    }
+    playSound('clearBoard');
+
+    this.pieces = generateSet(this.board, this.rng);
+    this.drawTray([0, 1, 2]);
+    this.time.delayedCall(450, () => {
+      this.isOver = !hasAnyMove(this.board, this.pieces);
+      if (this.isOver) this.endGame();
     });
   }
 

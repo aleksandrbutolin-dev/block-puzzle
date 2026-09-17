@@ -111,3 +111,28 @@ export function findDropTarget(board, cells, row, col, current = null) {
   }
   return best;
 }
+
+// Самый заполненный квадрат size×size — его освобождает «Продолжить?».
+export function densestArea(board, size = 4) {
+  let best = { row: 0, col: 0, filled: -1 };
+  for (let row = 0; row + size <= board.length; row++) {
+    for (let col = 0; col + size <= board[0].length; col++) {
+      let filled = 0;
+      for (let r = row; r < row + size; r++) {
+        for (let c = col; c < col + size; c++) {
+          if (board[r][c] !== null) filled++;
+        }
+      }
+      if (filled > best.filled) best = { row, col, filled };
+    }
+  }
+  return best;
+}
+
+export function clearArea(board, row, col, size) {
+  const next = board.map((line) => line.slice());
+  for (let r = row; r < row + size; r++) {
+    for (let c = col; c < col + size; c++) next[r][c] = null;
+  }
+  return next;
+}

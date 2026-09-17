@@ -9,6 +9,8 @@ import {
   clearLines,
   applyMove,
   findDropTarget,
+  densestArea,
+  clearArea,
 } from './board.js';
 
 const DOT = [[0, 0]];
@@ -238,5 +240,44 @@ describe('findDropTarget', () => {
   it('далеко от поля или всё занято — null', () => {
     expect(findDropTarget(createBoard(), SQUARE_2, -3, 2)).toBeNull();
     expect(findDropTarget(fromRows(Array(8).fill('########')), DOT, 2.5, 2.5)).toBeNull();
+  });
+});
+
+describe('densestArea / clearArea', () => {
+  it('находит самый заполненный квадрат 4×4', () => {
+    const board = fromRows([
+      '........',
+      '........',
+      '........',
+      '....####',
+      '....####',
+      '....###.',
+      '....####',
+      '#.......',
+    ]);
+    expect(densestArea(board, 4)).toEqual({ row: 3, col: 4, filled: 15 });
+  });
+
+  it('на пустом поле — левый верхний угол', () => {
+    expect(densestArea(createBoard(), 4)).toEqual({ row: 0, col: 0, filled: 0 });
+  });
+
+  it('clearArea очищает квадрат и не трогает остальное', () => {
+    const full = fromRows(Array(8).fill('########'));
+    const next = clearArea(full, 2, 3, 4);
+    expect(filledCount(next)).toBe(64 - 16);
+    expect(next[2][3]).toBeNull();
+    expect(next[5][6]).toBeNull();
+    expect(next[1][3]).not.toBeNull();
+    expect(next[2][7]).not.toBeNull();
+    expect(filledCount(full)).toBe(64);
+  });
+
+  it('после очистки 4×4 на полном поле встаёт любая фигура до 4 клеток в ширину', () => {
+    const full = fromRows(Array(8).fill('########'));
+    const { row, col } = densestArea(full, 4);
+    const next = clearArea(full, row, col, 4);
+    expect(canPlaceAnywhere(next, SQUARE_2)).toBe(true);
+    expect(canPlaceAnywhere(next, LINE_H3)).toBe(true);
   });
 });

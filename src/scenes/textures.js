@@ -25,6 +25,7 @@ export const TEX = {
   soundOn: 'sound-on',
   soundOff: 'sound-off',
   home: 'icon-home',
+  video: 'icon-video',
   tasks: 'icon-tasks',
   collection: 'icon-collection',
   spark: 'spark',
@@ -615,6 +616,21 @@ function drawHomeIcon(ctx, S) {
   ctx.fill();
 }
 
+// Значок «видео за награду»: экран с треугольником воспроизведения.
+function drawVideoIcon(ctx, S) {
+  const u = S / 96;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, 8 * u, 16 * u, 80 * u, 64 * u, 16 * u);
+  ctx.fill();
+  ctx.fillStyle = '#2f9a48';
+  ctx.beginPath();
+  ctx.moveTo(38 * u, 32 * u);
+  ctx.lineTo(64 * u, 48 * u);
+  ctx.lineTo(38 * u, 64 * u);
+  ctx.closePath();
+  ctx.fill();
+}
+
 // Большие значки для кнопок меню (без подложки).
 function drawTasksIcon(ctx, S) {
   const u = S / 96;
@@ -701,6 +717,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
+  makeCanvas(scene, TEX.video, 96, 96, (ctx, S) => drawVideoIcon(ctx, S));
   makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));
   makeCanvas(scene, TEX.collection, 96, 96, (ctx, S) => drawCollectionIcon(ctx, S));
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
