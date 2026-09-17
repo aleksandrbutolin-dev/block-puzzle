@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config.js';
 import { BOARD_SIZE, createBoard, canPlace, place, findFullLines, applyMove } from '../core/board.js';
-import { generateSet, hasAnyMove, pieceSize } from '../core/pieces.js';
+import { generateSet, refillPiece, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { loadValue, saveValue } from '../platform/storage.js';
@@ -85,7 +85,8 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (pointer) => this.endDrag(pointer));
 
     this.drawBoard();
-    this.drawTray(true);
+    this.drawTray([0, 1, 2]);
+    playSound('deal'); // слышно при «Заново»; до первого касания звук ещё закрыт
   }
 
   update(_time, delta) {
@@ -304,13 +305,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.showMovePopups(scored, piece, row, col);
 
-    let newSet = false;
-    if (this.pieces.every((p) => p === null)) {
-      this.pieces = generateSet(this.board, this.rng);
-      newSet = true;
-      playSound('deal');
-    }
-    this.drawTray(newSet);
+    // На место поставленной фигуры сразу приходит новая — в лотке всегда три.
+    this.pieces[slot] = refillPiece(this.board, this.pieces, slot, this.rng);
+    playSound('refill');
+    this.drawTray([slot]);
 
     if (!hasAnyMove(this.board, this.pieces)) {
       this.endGame();
@@ -589,21 +587,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // popIn — новые фигуры выпрыгивают по очереди.
-  drawTray(popIn = false) {
+  // popSlots — слоты, где фигура новая: она выпрыгивает.
+  drawTray(popSlots = []) {
     this.pieces.forEach((piece, slot) => {
       const { outer, body } = this.trayViews[slot];
       body.removeAll(true);
       if (!piece || this.drag?.slot === slot || this.returning.has(slot)) return;
       body.add(this.makePieceView(piece, TRAY_CELL));
-      if (popIn) {
+      const order = popSlots.indexOf(slot);
+      if (order >= 0) {
         this.tweens.killTweensOf(outer);
         outer.setScale(0);
         this.tweens.add({
           targets: outer,
           scale: 1,
           duration: 380,
-          delay: 120 + slot * 110,
+          delay: 120 + order * 110,
           ease: 'Back.easeOut',
           easeParams: [2.2],
         });

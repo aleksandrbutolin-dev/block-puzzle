@@ -95,12 +95,29 @@ function makePiece(rng, variant) {
 
 const REROLL_ATTEMPTS = 10;
 
-// Набор из трёх фигур. Старается, чтобы хотя бы одна помещалась на поле:
+// Сколько раз перебросить новую фигуру, если ни одна из трёх не помещается.
+// Больше — игра легче, меньше — сложнее. Полная гарантия сделала бы игру бесконечной.
+export const MERCY_REROLLS = 2;
+
+export function generatePiece(rng) {
+  return makePiece(rng, pickWeighted(rng, PIECE_VARIANTS));
+}
+
+// Новая фигура на место использованной (pieces[slot] уже не учитывается).
+export function refillPiece(board, pieces, slot, rng, rerolls = MERCY_REROLLS) {
+  const withNew = (piece) => pieces.map((p, i) => (i === slot ? piece : p));
+  let piece = generatePiece(rng);
+  for (let i = 0; i < rerolls && !hasAnyMove(board, withNew(piece)); i++) {
+    piece = generatePiece(rng);
+  }
+  return piece;
+}
+
+// Стартовый набор из трёх фигур. Старается, чтобы хотя бы одна помещалась на поле:
 // несколько раз перебрасывает набор, затем подменяет одну фигуру на подходящую.
 // Если на поле не помещается вообще ничего — возвращает обычный набор (конец игры).
 export function generateSet(board, rng, count = PIECES_PER_SET) {
-  const roll = () =>
-    Array.from({ length: count }, () => makePiece(rng, pickWeighted(rng, PIECE_VARIANTS)));
+  const roll = () => Array.from({ length: count }, () => generatePiece(rng));
 
   let set = roll();
   for (let i = 0; i < REROLL_ATTEMPTS && !hasAnyMove(board, set); i++) {

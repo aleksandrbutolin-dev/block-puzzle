@@ -4,6 +4,8 @@ import { createRng, pickWeighted } from './random.js';
 import {
   PIECE_VARIANTS,
   COLOR_COUNT,
+  generatePiece,
+  refillPiece,
   generateSet,
   hasAnyMove,
   normalize,
@@ -189,5 +191,45 @@ describe('hasAnyMove', () => {
   it('после хода место может закончиться', () => {
     const board = place(fullBoardExcept([[0, 0]]), dot.cells, 0, 0, 1);
     expect(hasAnyMove(board, [dot])).toBe(false);
+  });
+});
+
+describe('refillPiece', () => {
+  const square = PIECE_VARIANTS.find((v) => v.family === 'square2');
+
+  it('выдаёт фигуру с цветом', () => {
+    const piece = refillPiece(createBoard(), [null, square, square], 0, createRng(1));
+    expect(piece.cells.length).toBeGreaterThan(0);
+    expect(piece.color).toBeLessThan(COLOR_COUNT);
+  });
+
+  it('если другие фигуры помещаются — без переброса', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const refilled = refillPiece(createBoard(), [null, square, square], 0, createRng(seed));
+      expect(refilled.id).toBe(generatePiece(createRng(seed)).id);
+    }
+  });
+
+  it('одинаковое зерно — одинаковая фигура', () => {
+    const board = fullBoardExcept([[0, 0]]);
+    const a = refillPiece(board, [square, null, square], 1, createRng(7));
+    const b = refillPiece(board, [square, null, square], 1, createRng(7));
+    expect(a).toEqual(b);
+  });
+
+  it('переброс повышает шанс спастись, но не гарантирует его', () => {
+    // Свободен прямоугольник 1×3 — квадраты не встают, помещаются только мелкие фигуры.
+    const board = fullBoardExcept([[7, 0], [7, 1], [7, 2]]);
+    const pieces = [square, null, square];
+    let savedWith = 0;
+    let savedWithout = 0;
+    for (let seed = 0; seed < 400; seed++) {
+      const withMercy = refillPiece(board, pieces, 1, createRng(seed));
+      const noMercy = refillPiece(board, pieces, 1, createRng(seed), 0);
+      if (hasAnyMove(board, [square, withMercy, square])) savedWith++;
+      if (hasAnyMove(board, [square, noMercy, square])) savedWithout++;
+    }
+    expect(savedWith).toBeGreaterThan(savedWithout);
+    expect(savedWith).toBeLessThan(400);
   });
 });
