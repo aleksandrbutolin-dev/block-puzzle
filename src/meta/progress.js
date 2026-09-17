@@ -34,6 +34,7 @@ export function createProgress() {
     version: SAVE_VERSION,
     coins: 0,
     best: 0,
+    tutorialDone: false,
     streak: { count: 0, lastDay: null },
     daily: { day: null, tasks: [] },
     skins: { owned: ['toys'], selected: 'toys' },
@@ -45,13 +46,15 @@ export function createProgress() {
 export function migrateProgress(saved, legacyBest = 0) {
   const base = createProgress();
   if (!saved || typeof saved !== 'object') {
-    return { ...base, best: legacyBest };
+    return { ...base, best: legacyBest, tutorialDone: legacyBest > 0 };
   }
   return {
     ...base,
     ...saved,
     version: SAVE_VERSION,
     best: Math.max(saved.best ?? 0, legacyBest),
+    // Кто уже играл до появления обучения — обучение не показываем.
+    tutorialDone: saved.tutorialDone ?? ((saved.stats?.games ?? 0) > 0 || legacyBest > 0),
     streak: { ...base.streak, ...saved.streak },
     daily: { ...base.daily, ...saved.daily },
     skins: { ...base.skins, ...saved.skins },
@@ -202,6 +205,10 @@ export function claimTask(progress, taskId) {
   task.claimed = true;
   next.coins += task.reward;
   return { progress: next, reward: task.reward };
+}
+
+export function completeTutorial(progress) {
+  return progress.tutorialDone ? progress : { ...progress, tutorialDone: true };
 }
 
 // ---------- Темы ----------

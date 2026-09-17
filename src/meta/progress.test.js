@@ -18,6 +18,7 @@ import {
   claimTask,
   coinsForScore,
   addCoins,
+  completeTutorial,
   buySkin,
   selectSkin,
 } from './progress.js';
@@ -309,5 +310,30 @@ describe('addCoins', () => {
     const p = { ...createProgress(), coins: 10 };
     expect(addCoins(p, 5).coins).toBe(15);
     expect(p.coins).toBe(10);
+  });
+});
+
+describe('обучение', () => {
+  it('новый игрок — обучение не пройдено', () => {
+    expect(createProgress().tutorialDone).toBe(false);
+    expect(migrateProgress(null).tutorialDone).toBe(false);
+  });
+
+  it('кто уже играл — обучение считается пройденным', () => {
+    expect(migrateProgress({ stats: { games: 4 } }).tutorialDone).toBe(true);
+    expect(migrateProgress(null, 300).tutorialDone).toBe(true);
+    expect(migrateProgress({ stats: { games: 0 } }).tutorialDone).toBe(false);
+  });
+
+  it('сохранённый флаг главнее', () => {
+    expect(migrateProgress({ tutorialDone: false, stats: { games: 4 } }).tutorialDone).toBe(false);
+  });
+
+  it('completeTutorial', () => {
+    const p = createProgress();
+    const done = completeTutorial(p);
+    expect(done.tutorialDone).toBe(true);
+    expect(p.tutorialDone).toBe(false);
+    expect(completeTutorial(done)).toBe(done);
   });
 });

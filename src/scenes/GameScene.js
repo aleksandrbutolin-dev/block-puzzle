@@ -42,6 +42,7 @@ import {
 } from './textures.js';
 import { addText, addIconButton, addSoundButton } from './ui.js';
 import { addBackdrop } from './backdrop.js';
+import { Tutorial } from './tutorial.js';
 
 // Раскладка экрана 720×1280.
 export const CELL = 80;
@@ -131,6 +132,22 @@ export class GameScene extends Phaser.Scene {
     this.drawBoard();
     this.drawTray([0, 1, 2]);
     playSound('deal'); // слышно при «Заново»; до первого касания звук ещё закрыт
+
+    this.tutorial = getProgress().tutorialDone ? null : new Tutorial(this);
+  }
+
+  // Для обучения: геометрия лотка и поля.
+  get cellSize() {
+    return CELL;
+  }
+
+  slotCenter(slot) {
+    return slotCenter(slot);
+  }
+
+  pieceCenterOnBoard(piece, { row, col }) {
+    const { rows, cols } = pieceSize(piece.cells);
+    return { x: BOARD_X + (col + cols / 2) * CELL, y: BOARD_Y + (row + rows / 2) * CELL };
   }
 
   createBoardView() {
@@ -253,6 +270,8 @@ export class GameScene extends Phaser.Scene {
   startDrag(slot, pointer) {
     const piece = this.pieces[slot];
     if (this.isOver || this.drag || this.placing || !piece || this.returning.has(slot)) return;
+    if (this.tutorial && !this.tutorial.allowsSlot(slot)) return;
+    this.tutorial?.onDragStart();
 
     const { rows, cols } = pieceSize(piece.cells);
     const sprite = this.makePieceView(piece, CELL, true).setDepth(10);
@@ -308,7 +327,9 @@ export class GameScene extends Phaser.Scene {
     const top = cy - (drag.rows * CELL) / 2;
     const row = (top - BOARD_Y) / CELL;
     const col = (left - BOARD_X) / CELL;
-    const target = findDropTarget(this.board, drag.piece.cells, row, col, drag.target);
+    const target = this.tutorial
+      ? this.tutorial.constrain(row, col)
+      : findDropTarget(this.board, drag.piece.cells, row, col, drag.target);
 
     const same = target?.row === drag.target?.row && target?.col === drag.target?.col;
     if (!same) {
@@ -349,6 +370,7 @@ export class GameScene extends Phaser.Scene {
     // Мимо — фигура возвращается в лоток.
     const home = slotCenter(drag.slot);
     this.returning.add(drag.slot);
+    this.tutorial?.onDragCancel();
     playSound('back');
     this.tweens.add({
       targets: drag.sprite,
@@ -400,6 +422,11 @@ export class GameScene extends Phaser.Scene {
       this.pulseCamera(result.linesCleared);
     }
     this.showMovePopups(scored, piece, row, col);
+
+    if (this.tutorial) {
+      this.tutorial.afterMove();
+      return;
+    }
 
     // На место поставленной фигуры сразу приходит новая — в лотке всегда три.
     this.pieces[slot] = refillPiece(this.board, this.pieces, slot, this.rng, this.refillOptions());

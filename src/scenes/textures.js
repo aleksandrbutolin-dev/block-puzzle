@@ -26,6 +26,7 @@ export const TEX = {
   soundOff: 'sound-off',
   home: 'icon-home',
   video: 'icon-video',
+  hand: 'hand',
   tasks: 'icon-tasks',
   collection: 'icon-collection',
   spark: 'spark',
@@ -631,6 +632,55 @@ function drawVideoIcon(ctx, S) {
   ctx.fill();
 }
 
+// Мультяшная рука-указатель для обучения. Кончик пальца — в точке (0.42, 0.06) текстуры.
+export const HAND_TIP = { x: 0.42, y: 0.06 };
+
+function drawHand(ctx, S) {
+  const u = S / 128;
+  const outline = '#3a1d5c';
+  const skin = '#ffe0c7';
+  const shadowSkin = '#f4b996';
+
+  // Указательный палец, ладонь с поджатыми пальцами, большой палец.
+  const parts = [
+    [44, 6, 26, 70, 13],
+    [30, 56, 70, 60, 22],
+    [16, 66, 34, 22, 11],
+  ].map((part) => part.map((v) => v * u));
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 10 * u;
+  ctx.strokeStyle = outline;
+  // Сначала контур всех частей, потом заливка — контур остаётся только снаружи.
+  for (const part of parts) {
+    roundRect(ctx, ...part);
+    ctx.stroke();
+  }
+  ctx.fillStyle = skin;
+  for (const part of parts) {
+    roundRect(ctx, ...part);
+    ctx.fill();
+  }
+
+  // Складки поджатых пальцев и тень ладони
+  ctx.strokeStyle = shadowSkin;
+  ctx.lineWidth = 4 * u;
+  ctx.lineCap = 'round';
+  for (const x of [70, 84]) {
+    ctx.beginPath();
+    ctx.moveTo(x * u, 62 * u);
+    ctx.lineTo(x * u, 80 * u);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(244, 185, 150, 0.6)';
+  roundRect(ctx, 34 * u, 96 * u, 62 * u, 16 * u, 8 * u);
+  ctx.fill();
+  // Блик на пальце
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  roundRect(ctx, 50 * u, 12 * u, 6 * u, 22 * u, 3 * u);
+  ctx.fill();
+}
+
 // Большие значки для кнопок меню (без подложки).
 function drawTasksIcon(ctx, S) {
   const u = S / 96;
@@ -718,6 +768,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
   makeCanvas(scene, TEX.video, 96, 96, (ctx, S) => drawVideoIcon(ctx, S));
+  makeCanvas(scene, TEX.hand, 128, 128, (ctx, S) => drawHand(ctx, S));
   makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));
   makeCanvas(scene, TEX.collection, 96, 96, (ctx, S) => drawCollectionIcon(ctx, S));
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
