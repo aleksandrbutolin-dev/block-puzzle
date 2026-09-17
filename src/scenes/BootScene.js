@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures, setSkin } from './textures.js';
-import { BOARD_PX } from './GameScene.js';
+import { BOARD_PX } from './BoardScene.js';
 import { checkInToday, getProgress } from '../meta/store.js';
 
 // Стартовая сцена: готовит графику. Позже здесь будет загрузка звуков и SDK.
