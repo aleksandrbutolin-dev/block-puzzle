@@ -9,6 +9,7 @@ export const SAVE_VERSION = 1;
 
 export const POINTS_PER_COIN = 100; // монета за каждые 100 очков партии
 export const STREAK_REWARDS = [10, 15, 20, 25, 30, 40, 100]; // дни 1–7, дальше по кругу
+export const COINS_PER_STAR = 15; // за каждую новую звезду в «Приключении»
 
 export const SKINS = [
   { id: 'toys', price: 0 },
@@ -38,6 +39,7 @@ export function createProgress() {
     streak: { count: 0, lastDay: null },
     daily: { day: null, tasks: [] },
     skins: { owned: ['toys'], selected: 'toys' },
+    levels: { stars: {} }, // id уровня → звёзды (1–3)
     stats: { games: 0, lines: 0, pieces: 0, quickLosses: 0 },
   };
 }
@@ -58,6 +60,7 @@ export function migrateProgress(saved, legacyBest = 0) {
     streak: { ...base.streak, ...saved.streak },
     daily: { ...base.daily, ...saved.daily },
     skins: { ...base.skins, ...saved.skins },
+    levels: { ...base.levels, ...saved.levels, stars: { ...saved.levels?.stars } },
     stats: { ...base.stats, ...saved.stats },
   };
 }
@@ -209,6 +212,45 @@ export function claimTask(progress, taskId) {
 
 export function completeTutorial(progress) {
   return progress.tutorialDone ? progress : { ...progress, tutorialDone: true };
+}
+
+// ---------- Уровни «Приключения» ----------
+
+export function levelStars(progress, id) {
+  return progress.levels.stars[id] ?? 0;
+}
+
+export function isLevelDone(progress, id) {
+  return levelStars(progress, id) > 0;
+}
+
+// Открыт первый уровень и следующий за каждым пройденным.
+export function isLevelUnlocked(progress, id) {
+  return id === 1 || isLevelDone(progress, id - 1);
+}
+
+// Номер уровня, на котором игрок сейчас (первый непройденный).
+export function currentLevel(progress, total) {
+  for (let id = 1; id <= total; id++) {
+    if (!isLevelDone(progress, id)) return id;
+  }
+  return total;
+}
+
+export function totalStars(progress) {
+  return Object.values(progress.levels.stars).reduce((sum, n) => sum + n, 0);
+}
+
+// Уровень пройден: звёзды не уменьшаются, монеты — только за новые звёзды.
+export function completeLevel(progress, id, stars, coinsPerStar = COINS_PER_STAR) {
+  const had = levelStars(progress, id);
+  if (stars <= had) return { progress, newStars: 0, coins: 0 };
+  const next = clone(progress);
+  next.levels.stars[id] = stars;
+  const newStars = stars - had;
+  const coins = newStars * coinsPerStar;
+  next.coins += coins;
+  return { progress: next, newStars, coins };
 }
 
 // ---------- Темы ----------

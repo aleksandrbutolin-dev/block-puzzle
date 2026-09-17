@@ -19,6 +19,13 @@ import {
   coinsForScore,
   addCoins,
   completeTutorial,
+  levelStars,
+  isLevelDone,
+  isLevelUnlocked,
+  currentLevel,
+  totalStars,
+  completeLevel,
+  COINS_PER_STAR,
   buySkin,
   selectSkin,
 } from './progress.js';
@@ -335,5 +342,62 @@ describe('обучение', () => {
     expect(done.tutorialDone).toBe(true);
     expect(p.tutorialDone).toBe(false);
     expect(completeTutorial(done)).toBe(done);
+  });
+});
+
+describe('уровни «Приключения»', () => {
+  it('в начале открыт только первый', () => {
+    const p = createProgress();
+    expect(isLevelUnlocked(p, 1)).toBe(true);
+    expect(isLevelUnlocked(p, 2)).toBe(false);
+    expect(currentLevel(p, 30)).toBe(1);
+    expect(totalStars(p)).toBe(0);
+  });
+
+  it('прохождение открывает следующий и даёт монеты за звёзды', () => {
+    const { progress, newStars, coins } = completeLevel(createProgress(), 1, 2);
+    expect(newStars).toBe(2);
+    expect(coins).toBe(2 * COINS_PER_STAR);
+    expect(progress.coins).toBe(2 * COINS_PER_STAR);
+    expect(levelStars(progress, 1)).toBe(2);
+    expect(isLevelDone(progress, 1)).toBe(true);
+    expect(isLevelUnlocked(progress, 2)).toBe(true);
+    expect(currentLevel(progress, 30)).toBe(2);
+  });
+
+  it('повторное прохождение хуже — ничего не меняется', () => {
+    const p = completeLevel(createProgress(), 1, 3).progress;
+    const again = completeLevel(p, 1, 2);
+    expect(again.progress).toBe(p);
+    expect(again.coins).toBe(0);
+    expect(levelStars(p, 1)).toBe(3);
+  });
+
+  it('улучшение результата — монеты только за новые звёзды', () => {
+    const p = completeLevel(createProgress(), 1, 1).progress;
+    const better = completeLevel(p, 1, 3);
+    expect(better.newStars).toBe(2);
+    expect(better.coins).toBe(2 * COINS_PER_STAR);
+    expect(levelStars(better.progress, 1)).toBe(3);
+  });
+
+  it('всего звёзд и текущий уровень', () => {
+    let p = createProgress();
+    p = completeLevel(p, 1, 3).progress;
+    p = completeLevel(p, 2, 1).progress;
+    expect(totalStars(p)).toBe(4);
+    expect(currentLevel(p, 30)).toBe(3);
+  });
+
+  it('все уровни пройдены — текущий последний', () => {
+    let p = createProgress();
+    for (let id = 1; id <= 3; id++) p = completeLevel(p, id, 3).progress;
+    expect(currentLevel(p, 3)).toBe(3);
+  });
+
+  it('старое сохранение без уровней', () => {
+    const p = migrateProgress({ coins: 10 });
+    expect(p.levels.stars).toEqual({});
+    expect(isLevelUnlocked(p, 1)).toBe(true);
   });
 });
