@@ -6,7 +6,7 @@ import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { getProgress, setProgress } from '../meta/store.js';
 import { recordMove, recordGameEnd, updateBest } from '../meta/progress.js';
-import { playSound, isMuted, setMuted } from '../platform/audio.js';
+import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import {
   TEX,
@@ -16,7 +16,8 @@ import {
   SHELF_PANEL_CENTER_Y,
   addBlock,
 } from './textures.js';
-import { addText } from './ui.js';
+import { addText, addIconButton, addSoundButton } from './ui.js';
+import { addBackdrop } from './backdrop.js';
 
 // Раскладка экрана 720×1280.
 export const CELL = 80;
@@ -32,13 +33,6 @@ const TRAY_CELL = 44; // размер клетки фигуры в лотке
 // Насколько фигура поднята над точкой касания, чтобы палец её не закрывал.
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
-
-// Облака: [x, y, масштаб, прозрачность, скорость px/с].
-const CLOUDS = [
-  [110, 185, 0.9, 0.55, 9],
-  [615, 105, 0.7, 0.5, 6],
-  [580, 215, 0.5, 0.4, 4],
-];
 
 const cellCenter = (row, col) => ({
   x: BOARD_X + col * CELL + CELL / 2,
@@ -64,10 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.best = this.bestAtStart;
     this.shownScore = 0;
 
-    this.add.image(0, 0, TEX.background).setOrigin(0);
-    this.clouds = CLOUDS.map(([x, y, scale, alpha, speed]) =>
-      Object.assign(this.add.image(x, y, TEX.cloud).setScale(scale).setAlpha(alpha), { speed }),
-    );
+    addBackdrop(this);
     this.createBoardView();
     this.add
       .image(GAME_WIDTH / 2, TRAY_Y + SHELF_SIZE.height / 2 - SHELF_PANEL_CENTER_Y, TEX.shelf)
@@ -79,7 +70,8 @@ export class GameScene extends Phaser.Scene {
 
     this.createTray();
     this.createParticles();
-    this.createSoundButton();
+    addSoundButton(this);
+    addIconButton(this, 58, 58, TEX.home, () => this.goHome());
 
     this.input.on('pointermove', (pointer) => this.moveDrag(pointer));
     this.input.on('pointerup', (pointer) => this.endDrag(pointer));
@@ -88,13 +80,6 @@ export class GameScene extends Phaser.Scene {
     this.drawBoard();
     this.drawTray([0, 1, 2]);
     playSound('deal'); // слышно при «Заново»; до первого касания звук ещё закрыт
-  }
-
-  update(_time, delta) {
-    for (const cloud of this.clouds) {
-      cloud.x += (cloud.speed * delta) / 1000;
-      if (cloud.x - cloud.displayWidth / 2 > GAME_WIDTH) cloud.x = -cloud.displayWidth / 2;
-    }
   }
 
   createBoardView() {
@@ -175,21 +160,11 @@ export class GameScene extends Phaser.Scene {
       .setDepth(12);
   }
 
-  createSoundButton() {
-    const button = this.add
-      .image(GAME_WIDTH - 58, 58, isMuted() ? TEX.soundOff : TEX.soundOn)
-      .setDisplaySize(80, 80)
-      .setDepth(20)
-      .setInteractive({ useHandCursor: true });
-    const base = button.scale;
-    button.on('pointerdown', () => button.setScale(base * 0.9));
-    button.on('pointerout', () => button.setScale(base));
-    button.on('pointerup', () => {
-      button.setScale(base);
-      setMuted(!isMuted());
-      button.setTexture(isMuted() ? TEX.soundOff : TEX.soundOn);
-      playSound('button');
-    });
+  // Выход в меню посреди партии: партия не засчитывается.
+  goHome() {
+    if (this.isOver) return;
+    playSound('button');
+    this.scene.start('Menu');
   }
 
   burst(x, y, color, stars = 1) {

@@ -3,6 +3,7 @@ import '@fontsource/nunito/latin-900.css';
 import '@fontsource/nunito/cyrillic-900.css';
 import { GAME_WIDTH, GAME_HEIGHT } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
+import { MenuScene } from './scenes/MenuScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { THEME } from './scenes/theme.js';
@@ -29,7 +30,7 @@ function startGame() {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, GameScene, GameOverScene],
+    scene: [BootScene, MenuScene, GameScene, GameOverScene],
     audio: { noAudio: true }, // звук свой — platform/audio.js
   });
 

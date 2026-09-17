@@ -220,6 +220,12 @@ const SOUNDS = {
     }
   },
 
+  // Монета долетела до счётчика.
+  coin() {
+    tone({ type: 'square', freq: 1568, at: 0, dur: 0.05, gain: 0.05, filter: 4000 });
+    tone({ type: 'square', freq: 2093, at: 0.05, dur: 0.12, gain: 0.05, filter: 4000 });
+  },
+
   // Нажатие кнопки.
   button() {
     click({ dur: 0.03, gain: 0.2, freq: 2500 });

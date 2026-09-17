@@ -55,9 +55,14 @@ export class GameOverScene extends Phaser.Scene {
     coinIcon.x = -rowWidth / 2 + coinIcon.displayWidth / 2;
     coinsText.setOrigin(0, 0.5).setX(coinIcon.x + coinIcon.displayWidth / 2 + 12 - coinsText.padding.left);
 
-    const button = addButton(this, 0, 215, 'Заново', () => this.restart());
+    const again = addButton(this, 70, 215, 'Заново', () => this.restart(), { width: 300 });
+    const home = addButton(this, -175, 215, '', () => this.toMenu(), {
+      width: 150,
+      variant: 'blue',
+      icon: TEX.home,
+    });
 
-    panel.add([bg, ribbon, title, scoreLabel, scoreText, bestText, coinIcon, coinsText, button]);
+    panel.add([bg, ribbon, title, scoreLabel, scoreText, bestText, coinIcon, coinsText, again, home]);
     panel.setScale(0.6).setAlpha(0);
 
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });
@@ -95,8 +100,12 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   restart() {
-    playSound('button');
     this.scene.stop();
     this.scene.get('Game').scene.restart();
+  }
+
+  toMenu() {
+    this.scene.stop();
+    this.scene.get('Game').scene.start('Menu');
   }
 }

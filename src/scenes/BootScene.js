@@ -12,6 +12,6 @@ export class BootScene extends Phaser.Scene {
   create() {
     generateTextures(this, BOARD_PX);
     checkInToday();
-    this.scene.start('Game');
+    this.scene.start('Menu');
   }
 }

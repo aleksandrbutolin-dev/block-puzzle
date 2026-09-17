@@ -16,6 +16,9 @@ export const TEX = {
   coin: 'coin',
   soundOn: 'sound-on',
   soundOff: 'sound-off',
+  home: 'icon-home',
+  tasks: 'icon-tasks',
+  collection: 'icon-collection',
   spark: 'spark',
   star: 'star',
 };
@@ -426,8 +429,8 @@ function drawCoin(ctx, S) {
   ctx.fill();
 }
 
-// Круглая кнопка звука: динамик + волны или крестик.
-function drawSoundIcon(ctx, S, on) {
+// Круглая подложка для значков-кнопок.
+function drawBadge(ctx, S) {
   const c = S / 2;
   ctx.fillStyle = THEME.css.boardBottom;
   ctx.beginPath();
@@ -441,8 +444,12 @@ function drawSoundIcon(ctx, S, on) {
   ctx.beginPath();
   ctx.arc(c, c, c - 12, 0, Math.PI * 2);
   ctx.fill();
+}
 
-  // Динамик
+// Динамик + волны или крестик.
+function drawSoundIcon(ctx, S, on) {
+  drawBadge(ctx, S);
+  const c = S / 2;
   const u = S / 96;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
@@ -473,6 +480,69 @@ function drawSoundIcon(ctx, S, on) {
     ctx.lineTo(c + 10 * u, c + 10 * u);
     ctx.stroke();
   }
+}
+
+function drawHomeIcon(ctx, S) {
+  drawBadge(ctx, S);
+  const c = S / 2;
+  const u = S / 96;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(c, c - 22 * u);
+  ctx.lineTo(c + 24 * u, c);
+  ctx.lineTo(c + 16 * u, c);
+  ctx.lineTo(c + 16 * u, c + 20 * u);
+  ctx.lineTo(c - 16 * u, c + 20 * u);
+  ctx.lineTo(c - 16 * u, c);
+  ctx.lineTo(c - 24 * u, c);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = THEME.css.boardTop;
+  roundRect(ctx, c - 5 * u, c + 6 * u, 10 * u, 14 * u, 3 * u);
+  ctx.fill();
+}
+
+// Большие значки для кнопок меню (без подложки).
+function drawTasksIcon(ctx, S) {
+  const u = S / 96;
+  ctx.fillStyle = '#fff4e0';
+  roundRect(ctx, 18 * u, 10 * u, 60 * u, 76 * u, 12 * u);
+  ctx.fill();
+  ctx.fillStyle = '#e0a060';
+  roundRect(ctx, 34 * u, 4 * u, 28 * u, 14 * u, 6 * u);
+  ctx.fill();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < 3; i++) {
+    const y = (32 + i * 18) * u;
+    ctx.strokeStyle = '#46cf3c';
+    ctx.lineWidth = 6 * u;
+    ctx.beginPath();
+    ctx.moveTo(26 * u, y);
+    ctx.lineTo(31 * u, y + 5 * u);
+    ctx.lineTo(39 * u, y - 5 * u);
+    ctx.stroke();
+    ctx.strokeStyle = '#b89a86';
+    ctx.lineWidth = 5 * u;
+    ctx.beginPath();
+    ctx.moveTo(47 * u, y);
+    ctx.lineTo(68 * u, y);
+    ctx.stroke();
+  }
+}
+
+function drawCollectionIcon(ctx, S) {
+  const u = S / 96;
+  const colors = [0xf5333f, 0xffd21a, 0x14c8c4, 0xff55c8];
+  colors.forEach((color, i) => {
+    const x = (i % 2) * 40 * u + 8 * u;
+    const y = Math.floor(i / 2) * 40 * u + 8 * u;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale((40 * u) / 128, (40 * u) / 128);
+    drawBlock(ctx, 128, color, BLOCK_ICONS[[0, 2, 4, 6][i]]);
+    ctx.restore();
+  });
 }
 
 // ---------- Частицы ----------
@@ -515,6 +585,9 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.coin, 96, 96, (ctx, S) => drawCoin(ctx, S));
   makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
+  makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
+  makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));
+  makeCanvas(scene, TEX.collection, 96, 96, (ctx, S) => drawCollectionIcon(ctx, S));
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
   makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
 }
