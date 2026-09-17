@@ -5,24 +5,29 @@ import { generateSet, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { loadValue, saveValue } from '../platform/storage.js';
-import { THEME, drawBlock } from './theme.js';
+import { THEME } from './theme.js';
+import { TEX, TRAY_TEX_PADDING, TRAY_TEX_MARGIN, addBlock } from './textures.js';
 import { addText } from './ui.js';
 
 // Раскладка экрана 720×1280.
-const CELL = 80;
-const BOARD_PX = CELL * BOARD_SIZE;
+export const CELL = 80;
+export const BOARD_PX = CELL * BOARD_SIZE;
 const BOARD_X = (GAME_WIDTH - BOARD_PX) / 2;
-const BOARD_Y = 240;
-const BOARD_PADDING = 12;
+const BOARD_Y = 250;
 
-const TRAY_Y = 1060; // центр лотка с фигурами
+const TRAY_Y = 1075; // центр лотка с фигурами
 const TRAY_SLOT_W = GAME_WIDTH / 3;
 const TRAY_SLOT_H = 280; // зона захвата фигуры — крупнее самой фигуры
-const TRAY_CELL = 40; // фигуры в лотке — в половину размера
+const TRAY_CELL = 44; // размер клетки фигуры в лотке
 
 // Насколько фигура поднята над точкой касания, чтобы палец её не закрывал.
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
+
+const cellCenter = (row, col) => ({
+  x: BOARD_X + col * CELL + CELL / 2,
+  y: BOARD_Y + row * CELL + CELL / 2,
+});
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -41,15 +46,15 @@ export class GameScene extends Phaser.Scene {
     this.best = this.bestAtStart;
     this.shownScore = 0;
 
-    this.bestText = addText(this, GAME_WIDTH / 2, 50, '', 30, { color: THEME.textMuted });
-    this.scoreText = addText(this, GAME_WIDTH / 2, 135, '0', 96, { fontStyle: 'bold' });
+    this.add.image(0, 0, TEX.background).setOrigin(0);
+    this.createBoardView();
+
+    this.bestText = addText(this, GAME_WIDTH / 2, 52, '', 30);
+    this.scoreText = addText(this, GAME_WIDTH / 2, 142, '0', 104);
     this.updateBestText();
 
-    this.boardGraphics = this.add.graphics();
-    this.previewGraphics = this.add.graphics();
-    this.trayGraphics = this.add.graphics();
-
-    for (let slot = 0; slot < this.pieces.length; slot++) {
+    this.trayViews = [0, 1, 2].map(() => this.add.container(0, 0).setDepth(5));
+    for (let slot = 0; slot < this.trayViews.length; slot++) {
       this.add
         .zone(TRAY_SLOT_W * slot + TRAY_SLOT_W / 2, TRAY_Y, TRAY_SLOT_W, TRAY_SLOT_H)
         .setInteractive()
@@ -63,6 +68,24 @@ export class GameScene extends Phaser.Scene {
     this.drawTray();
   }
 
+  createBoardView() {
+    const offset = TRAY_TEX_PADDING + TRAY_TEX_MARGIN;
+    this.add.image(BOARD_X - offset, BOARD_Y - offset, TEX.tray).setOrigin(0);
+
+    this.blockViews = [];
+    this.previewViews = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      this.blockViews.push([]);
+      this.previewViews.push([]);
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const { x, y } = cellCenter(r, c);
+        this.add.image(x, y, TEX.cell).setDisplaySize(CELL, CELL);
+        this.blockViews[r].push(addBlock(this, x, y, CELL, 0).setVisible(false).setDepth(1));
+        this.previewViews[r].push(addBlock(this, x, y, CELL, 0).setVisible(false).setDepth(2));
+      }
+    }
+  }
+
   // ---------- Перетаскивание ----------
 
   startDrag(slot, pointer) {
@@ -70,10 +93,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isOver || this.drag || !piece || this.returning.has(slot)) return;
 
     const { rows, cols } = pieceSize(piece.cells);
-    const sprite = this.add.graphics().setDepth(10);
-    for (const [r, c] of piece.cells) {
-      drawBlock(sprite, c * CELL, r * CELL, CELL, THEME.blocks[piece.color]);
-    }
+    const sprite = this.makePieceView(piece, CELL).setDepth(10);
 
     this.drag = {
       slot,
@@ -118,7 +138,7 @@ export class GameScene extends Phaser.Scene {
     const drag = this.drag;
     if (!drag || pointer.id !== drag.pointerId) return;
     this.drag = null;
-    this.previewGraphics.clear();
+    this.drawPreview();
 
     if (drag.target) {
       drag.sprite.destroy();
@@ -174,6 +194,25 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  animateClear(before, piece, row, col, lines) {
+    // Цвет очищенной клетки: был на поле до хода или пришёл с фигурой.
+    const placed = place(before, piece.cells, row, col, piece.color);
+    for (const [r, c] of lineCells(lines)) {
+      const { x, y } = cellCenter(r, c);
+      const block = addBlock(this, x, y, CELL, placed[r][c]).setDepth(6);
+      const distance = Math.abs(r - row) + Math.abs(c - col);
+      this.tweens.add({
+        targets: block,
+        scale: 0,
+        alpha: 0,
+        delay: distance * 20,
+        duration: 220,
+        ease: 'Back.easeIn',
+        onComplete: () => block.destroy(),
+      });
+    }
+  }
+
   // ---------- Счёт ----------
 
   updateScore() {
@@ -209,26 +248,23 @@ export class GameScene extends Phaser.Scene {
     const x = BOARD_X + (col + cols / 2) * CELL;
     const y = BOARD_Y + (row + rows / 2) * CELL;
 
-    const lines = [{ text: `+${scored.points}`, size: 56, color: THEME.text }];
+    const lines = [{ text: `+${scored.points}`, size: 60, color: THEME.text }];
     if (scored.combo >= 2) {
-      lines.push({ text: `Комбо ×${scored.combo}`, size: 44, color: THEME.gold });
+      lines.push({ text: `Комбо ×${scored.combo}`, size: 48, color: THEME.gold });
     }
     if (scored.streak >= 2) {
-      lines.push({ text: `Серия ×${scored.streak}`, size: 40, color: '#5ed16a' });
+      lines.push({ text: `Серия ×${scored.streak}`, size: 44, color: THEME.green });
     }
     if (scored.bonusPoints > 0) {
-      lines.push({ text: 'Чистое поле!', size: 48, color: '#3dc9ff' });
+      lines.push({ text: 'Чистое поле!', size: 52, color: THEME.cyan });
     }
 
     lines.forEach((line, i) => {
-      const label = addText(this, x, y + i * 56, line.text, line.size, {
+      const label = addText(this, x, y + i * 62, line.text, line.size, {
         color: line.color,
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 6,
       }).setDepth(15);
       // Не даём надписи вылезти за край экрана.
-      const half = label.width / 2 + 16;
+      const half = label.width / 2 + 8;
       label.x = Phaser.Math.Clamp(x, half, GAME_WIDTH - half);
       label.setScale(0.5);
       this.tweens.add({
@@ -261,35 +297,16 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  animateClear(before, piece, row, col, lines) {
-    // Цвет очищенной клетки: был на поле до хода или пришёл с фигурой.
-    const placed = place(before, piece.cells, row, col, piece.color);
-    const cells = new Map();
-    for (const r of lines.rows) {
-      for (let c = 0; c < BOARD_SIZE; c++) cells.set(`${r},${c}`, [r, c]);
-    }
-    for (const c of lines.cols) {
-      for (let r = 0; r < BOARD_SIZE; r++) cells.set(`${r},${c}`, [r, c]);
-    }
-
-    for (const [r, c] of cells.values()) {
-      const g = this.add.graphics().setDepth(5);
-      drawBlock(g, -CELL / 2, -CELL / 2, CELL, THEME.blocks[placed[r][c]]);
-      g.setPosition(BOARD_X + c * CELL + CELL / 2, BOARD_Y + r * CELL + CELL / 2);
-      const distance = Math.abs(r - row) + Math.abs(c - col);
-      this.tweens.add({
-        targets: g,
-        scale: 0,
-        alpha: 0,
-        delay: distance * 20,
-        duration: 220,
-        ease: 'Back.easeIn',
-        onComplete: () => g.destroy(),
-      });
-    }
-  }
-
   // ---------- Отрисовка ----------
+
+  // Фигура из блоков; (0, 0) контейнера — левый верхний угол фигуры.
+  makePieceView(piece, size) {
+    const container = this.add.container(0, 0);
+    for (const [r, c] of piece.cells) {
+      container.add(addBlock(this, c * size + size / 2, r * size + size / 2, size, piece.color));
+    }
+    return container;
+  }
 
   trayOrigin(slot, piece) {
     const { rows, cols } = pieceSize(piece.cells);
@@ -300,71 +317,61 @@ export class GameScene extends Phaser.Scene {
   }
 
   drawBoard() {
-    const g = this.boardGraphics;
-    g.clear();
-    g.fillStyle(THEME.boardBackground, 1);
-    g.fillRoundedRect(
-      BOARD_X - BOARD_PADDING,
-      BOARD_Y - BOARD_PADDING,
-      BOARD_PX + BOARD_PADDING * 2,
-      BOARD_PX + BOARD_PADDING * 2,
-      20,
-    );
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
-        const x = BOARD_X + c * CELL;
-        const y = BOARD_Y + r * CELL;
         const value = this.board[r][c];
-        if (value === null) {
-          g.fillStyle(THEME.emptyCell, 1);
-          g.fillRoundedRect(x + 3, y + 3, CELL - 6, CELL - 6, 10);
-        } else {
-          drawBlock(g, x, y, CELL, THEME.blocks[value]);
-        }
+        const view = this.blockViews[r][c];
+        view.setVisible(value !== null);
+        if (value !== null) view.setTexture(TEX.block(value));
       }
     }
   }
 
   // Подсветка места под фигурой и линий, которые исчезнут после хода.
   drawPreview() {
-    const g = this.previewGraphics;
-    g.clear();
+    for (const line of this.previewViews) {
+      for (const view of line) view.setVisible(false);
+    }
     const drag = this.drag;
     if (!drag?.target) return;
 
     const { row, col } = drag.target;
-    const color = THEME.blocks[drag.piece.color];
+    const texture = TEX.block(drag.piece.color);
     const placed = place(this.board, drag.piece.cells, row, col, drag.piece.color);
-    const lines = findFullLines(placed);
 
-    for (const r of lines.rows) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        drawBlock(g, BOARD_X + c * CELL, BOARD_Y + r * CELL, CELL, color);
-      }
+    for (const [r, c] of lineCells(findFullLines(placed))) {
+      this.previewViews[r][c].setTexture(texture).setAlpha(1).setVisible(true);
     }
-    for (const c of lines.cols) {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        drawBlock(g, BOARD_X + c * CELL, BOARD_Y + r * CELL, CELL, color);
-      }
-    }
-
-    g.fillStyle(color, 0.35);
     for (const [dr, dc] of drag.piece.cells) {
-      const x = BOARD_X + (col + dc) * CELL;
-      const y = BOARD_Y + (row + dr) * CELL;
-      g.fillRoundedRect(x + 3, y + 3, CELL - 6, CELL - 6, 10);
+      const view = this.previewViews[row + dr][col + dc];
+      if (!view.visible) view.setTexture(texture).setAlpha(0.4).setVisible(true);
     }
   }
 
   drawTray() {
-    const g = this.trayGraphics;
-    g.clear();
     this.pieces.forEach((piece, slot) => {
+      const view = this.trayViews[slot];
+      view.removeAll(true);
       if (!piece || this.drag?.slot === slot || this.returning.has(slot)) return;
       const { x, y } = this.trayOrigin(slot, piece);
+      view.setPosition(x, y);
       for (const [r, c] of piece.cells) {
-        drawBlock(g, x + c * TRAY_CELL, y + r * TRAY_CELL, TRAY_CELL, THEME.blocks[piece.color]);
+        const cx = c * TRAY_CELL + TRAY_CELL / 2;
+        const cy = r * TRAY_CELL + TRAY_CELL / 2;
+        view.add(addBlock(this, cx, cy, TRAY_CELL, piece.color));
       }
     });
   }
+}
+
+// Клетки очищаемых строк и столбцов без повторов: [[row, col], ...].
+function lineCells({ rows, cols }) {
+  const cells = new Map();
+  for (const r of rows) {
+    for (let c = 0; c < BOARD_SIZE; c++) cells.set(r * BOARD_SIZE + c, [r, c]);
+  }
+  for (const c of cols) {
+    for (let r = 0; r < BOARD_SIZE; r++) cells.set(r * BOARD_SIZE + c, [r, c]);
+  }
+  return cells.values();
 }

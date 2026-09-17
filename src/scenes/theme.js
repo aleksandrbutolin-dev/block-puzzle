@@ -1,31 +1,31 @@
-// Временная палитра (до выбора стиля на этапе 3).
+// Стиль «мультяшное 3D», тёплый закат.
 export const THEME = {
-  background: 0x1a1a2e,
-  boardBackground: 0x16213e,
-  emptyCell: 0x24304f,
-  text: '#ffffff',
-  textMuted: '#8a94b8',
-  accent: 0x3dbb6e,
-  accentPressed: 0x2e9456,
-  gold: '#ffd93d',
-  overlay: 0x0b0b16,
-  panel: 0x232a4a,
-  // Индекс цвета фигуры → цвет блока. Длина = COLOR_COUNT.
-  blocks: [0xff5c5c, 0xffa53d, 0xffd93d, 0x5ed16a, 0x3dc9ff, 0x5c7cff, 0xc35cff],
-};
+  background: 0x6d5fd0, // цвет вокруг игры на широких экранах
+  // Индекс цвета фигуры → основной цвет блока. Длина = COLOR_COUNT.
+  blocks: [0xff4f64, 0xff9a3c, 0xffcf3a, 0x5cd65c, 0x33c4f0, 0x5a7bff, 0xb865ff],
 
-// Скруглённый блок с простым бликом сверху.
-export function drawBlock(graphics, x, y, size, color) {
-  const radius = Math.max(2, size * 0.14);
-  const inset = Math.max(1, size * 0.04);
-  graphics.fillStyle(color, 1);
-  graphics.fillRoundedRect(x + inset, y + inset, size - inset * 2, size - inset * 2, radius);
-  graphics.fillStyle(0xffffff, 0.22);
-  graphics.fillRoundedRect(
-    x + inset * 3,
-    y + inset * 3,
-    size - inset * 6,
-    (size - inset * 6) * 0.3,
-    radius * 0.6,
-  );
-}
+  font: '"Nunito", Arial, sans-serif',
+  text: '#ffffff',
+  outline: '#4a2170', // обводка мультяшных надписей
+  textMuted: '#fde8ff',
+  gold: '#ffd84a',
+  green: '#7dff8a',
+  cyan: '#7fe8ff',
+
+  panel: 0xfff3e6,
+  panelText: '#4a2170',
+  panelMuted: '#a07cb8',
+  overlay: 0x2a1040,
+
+  button: 0x4fd06a,
+  buttonSide: 0x2f9a48,
+  buttonHighlight: 0x8ff0a0,
+
+  // Цвета для canvas.
+  css: {
+    cellHole: '#4b2d6e',
+    trayTop: '#7b4fa8',
+    trayBottom: '#633d92',
+    trayEdge: '#3f2266',
+  },
+};
