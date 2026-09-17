@@ -37,7 +37,7 @@ export function createProgress() {
     streak: { count: 0, lastDay: null },
     daily: { day: null, tasks: [] },
     skins: { owned: ['toys'], selected: 'toys' },
-    stats: { games: 0, lines: 0, pieces: 0 },
+    stats: { games: 0, lines: 0, pieces: 0, quickLosses: 0 },
   };
 }
 
@@ -160,9 +160,19 @@ export function coinsForScore(score) {
   return Math.floor(score / POINTS_PER_COIN);
 }
 
-// Конец партии: монеты за очки, рекорд, счётчик партий.
-export function recordGameEnd(progress, { score }) {
+// Партия короче стольких ходов — «быстрый проигрыш».
+export const QUICK_LOSS_MOVES = 20;
+// После стольких быстрых проигрышей подряд игра помогает.
+export const ASSIST_AFTER = 2;
+
+export function needsAssist(progress) {
+  return (progress.stats.quickLosses ?? 0) >= ASSIST_AFTER;
+}
+
+// Конец партии: монеты за очки, рекорд, счётчик партий, счётчик быстрых проигрышей.
+export function recordGameEnd(progress, { score, moves = Infinity }) {
   const next = clone(progress);
+  next.stats.quickLosses = moves < QUICK_LOSS_MOVES ? (next.stats.quickLosses ?? 0) + 1 : 0;
   const coins = coinsForScore(score);
   const isNewBest = score > next.best;
   next.coins += coins;

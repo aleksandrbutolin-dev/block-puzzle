@@ -13,6 +13,8 @@ import {
   recordMove,
   recordGameEnd,
   updateBest,
+  needsAssist,
+  QUICK_LOSS_MOVES,
   claimTask,
   coinsForScore,
   buySkin,
@@ -262,5 +264,41 @@ describe('темы', () => {
     expect(selectSkin(p, 'crystals')).toBe(p);
     const bought = buySkin({ ...p, coins: 500 }, 'crystals').progress;
     expect(selectSkin(bought, 'toys').skins.selected).toBe('toys');
+  });
+});
+
+describe('помощь после быстрых проигрышей', () => {
+  const quick = { score: 50, moves: QUICK_LOSS_MOVES - 1 };
+  const normal = { score: 900, moves: QUICK_LOSS_MOVES + 30 };
+
+  it('два быстрых проигрыша подряд включают помощь', () => {
+    let p = createProgress();
+    expect(needsAssist(p)).toBe(false);
+    p = recordGameEnd(p, quick).progress;
+    expect(needsAssist(p)).toBe(false);
+    p = recordGameEnd(p, quick).progress;
+    expect(needsAssist(p)).toBe(true);
+  });
+
+  it('нормальная партия выключает помощь', () => {
+    let p = createProgress();
+    p = recordGameEnd(p, quick).progress;
+    p = recordGameEnd(p, quick).progress;
+    p = recordGameEnd(p, normal).progress;
+    expect(needsAssist(p)).toBe(false);
+    expect(p.stats.quickLosses).toBe(0);
+  });
+
+  it('старое сохранение без счётчика', () => {
+    const p = migrateProgress({ stats: { games: 3 } });
+    expect(p.stats.quickLosses).toBe(0);
+    expect(needsAssist(p)).toBe(false);
+  });
+
+  it('без числа ходов партия не считается быстрой', () => {
+    let p = createProgress();
+    p = recordGameEnd(p, { score: 10 }).progress;
+    p = recordGameEnd(p, { score: 10 }).progress;
+    expect(needsAssist(p)).toBe(false);
   });
 });

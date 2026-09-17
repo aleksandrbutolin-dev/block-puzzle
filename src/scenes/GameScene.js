@@ -10,11 +10,18 @@ import {
   densestArea,
   clearArea,
 } from '../core/board.js';
-import { generateSet, refillPiece, hasAnyMove, pieceSize } from '../core/pieces.js';
+import {
+  generateSet,
+  refillPiece,
+  hasAnyMove,
+  pieceSize,
+  difficultyForScore,
+  MERCY_REROLLS,
+} from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { getProgress, setProgress } from '../meta/store.js';
-import { recordMove, recordGameEnd, updateBest } from '../meta/progress.js';
+import { recordMove, recordGameEnd, updateBest, needsAssist } from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import {
@@ -47,6 +54,10 @@ const TRAY_PAD = 14;
 // Насколько фигура поднята над точкой касания, чтобы палец её не закрывал.
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
+
+// Помощь после нескольких быстрых проигрышей: сложность растёт медленнее, перебросов больше.
+const ASSIST_DIFFICULTY = 0.5;
+const ASSIST_REROLLS = 5;
 
 // «Продолжить?» освобождает квадрат такого размера.
 const REVIVE_AREA = 4;
@@ -83,6 +94,8 @@ export class GameScene extends Phaser.Scene {
     this.returning = new Set(); // слоты, чьи фигуры летят обратно в лоток
     this.isOver = false;
     this.revived = false; // «Продолжить?» уже использовано в этой партии
+    this.moves = 0;
+    this.assist = needsAssist(getProgress());
     this.scoreState = createScoreState();
     this.bestAtStart = getProgress().best;
     this.best = this.bestAtStart;
@@ -348,6 +361,7 @@ export class GameScene extends Phaser.Scene {
   // ---------- Ход ----------
 
   makeMove(slot, piece, row, col) {
+    this.moves += 1;
     const before = this.board;
     const result = applyMove(before, piece.cells, row, col, piece.color);
     this.board = result.board;
@@ -373,13 +387,21 @@ export class GameScene extends Phaser.Scene {
     this.showMovePopups(scored, piece, row, col);
 
     // На место поставленной фигуры сразу приходит новая — в лотке всегда три.
-    this.pieces[slot] = refillPiece(this.board, this.pieces, slot, this.rng);
+    this.pieces[slot] = refillPiece(this.board, this.pieces, slot, this.rng, this.refillOptions());
     playSound('refill');
     this.drawTray([slot]);
 
     if (!hasAnyMove(this.board, this.pieces)) {
       this.endGame();
     }
+  }
+
+  // Сложность новой фигуры: растёт с очками, при помощи — медленнее.
+  refillOptions() {
+    const difficulty = difficultyForScore(this.scoreState.score);
+    return this.assist
+      ? { difficulty: difficulty * ASSIST_DIFFICULTY, rerolls: ASSIST_REROLLS }
+      : { difficulty, rerolls: MERCY_REROLLS };
   }
 
   playMoveSounds(scored, boardEmpty) {
@@ -640,7 +662,7 @@ export class GameScene extends Phaser.Scene {
 
   finishGame() {
     const score = this.scoreState.score;
-    const ended = recordGameEnd(getProgress(), { score });
+    const ended = recordGameEnd(getProgress(), { score, moves: this.moves });
     setProgress(ended.progress);
     this.scene.launch('GameOver', {
       score,

@@ -6,6 +6,9 @@ import {
   COLOR_COUNT,
   generatePiece,
   refillPiece,
+  difficultyForScore,
+  sizeFactor,
+  MAX_DIFFICULTY_SCORE,
   generateSet,
   hasAnyMove,
   normalize,
@@ -225,11 +228,75 @@ describe('refillPiece', () => {
     let savedWithout = 0;
     for (let seed = 0; seed < 400; seed++) {
       const withMercy = refillPiece(board, pieces, 1, createRng(seed));
-      const noMercy = refillPiece(board, pieces, 1, createRng(seed), 0);
+      const noMercy = refillPiece(board, pieces, 1, createRng(seed), { rerolls: 0 });
       if (hasAnyMove(board, [square, withMercy, square])) savedWith++;
       if (hasAnyMove(board, [square, noMercy, square])) savedWithout++;
     }
     expect(savedWith).toBeGreaterThan(savedWithout);
     expect(savedWith).toBeLessThan(400);
+  });
+});
+
+describe('сложность', () => {
+  it('difficultyForScore: от 0 до 1', () => {
+    expect(difficultyForScore(0)).toBe(0);
+    expect(difficultyForScore(MAX_DIFFICULTY_SCORE / 2)).toBe(0.5);
+    expect(difficultyForScore(MAX_DIFFICULTY_SCORE * 3)).toBe(1);
+    expect(difficultyForScore(-5)).toBe(0);
+  });
+
+  it('sizeFactor: без сложности все равны', () => {
+    for (const n of [1, 2, 3, 5, 9]) expect(sizeFactor(n, 0)).toBe(1);
+  });
+
+  it('sizeFactor: на максимуме мелкие реже, крупные чаще, в пределах', () => {
+    expect(sizeFactor(1, 1)).toBe(0.3);
+    expect(sizeFactor(3, 1)).toBe(1);
+    expect(sizeFactor(5, 1)).toBeCloseTo(2.2);
+    expect(sizeFactor(9, 1)).toBe(2.5);
+  });
+
+  it('на высокой сложности мелких фигур (1–3 клетки) вдвое меньше, крупных (5+) — больше', () => {
+    const shares = (difficulty) => {
+      const rng = createRng(21);
+      let small = 0;
+      let big = 0;
+      for (let i = 0; i < 5000; i++) {
+        const n = generatePiece(rng, difficulty).cells.length;
+        if (n <= 3) small++;
+        if (n >= 5) big++;
+      }
+      return { small: small / 5000, big: big / 5000 };
+    };
+    const easy = shares(0);
+    const hard = shares(1);
+    expect(hard.small).toBeLessThan(easy.small * 0.65);
+    expect(hard.big).toBeGreaterThan(easy.big * 1.4);
+  });
+
+  it('refillPiece учитывает сложность', () => {
+    const board = createBoard();
+    const square = PIECE_VARIANTS.find((v) => v.family === 'square2');
+    let easyDots = 0;
+    let hardDots = 0;
+    for (let seed = 0; seed < 2000; seed++) {
+      if (refillPiece(board, [null, square, square], 0, createRng(seed)).cells.length <= 2) easyDots++;
+      if (refillPiece(board, [null, square, square], 0, createRng(seed), { difficulty: 1 }).cells.length <= 2) hardDots++;
+    }
+    expect(hardDots).toBeLessThan(easyDots * 0.6);
+  });
+
+  it('больше перебросов — чаще спасение', () => {
+    const board = fullBoardExcept([[7, 0], [7, 1], [7, 2]]);
+    const square = PIECE_VARIANTS.find((v) => v.family === 'square2');
+    const saved = (rerolls) => {
+      let n = 0;
+      for (let seed = 0; seed < 400; seed++) {
+        const p = refillPiece(board, [square, null, square], 1, createRng(seed), { rerolls });
+        if (hasAnyMove(board, [square, p, square])) n++;
+      }
+      return n;
+    };
+    expect(saved(5)).toBeGreaterThan(saved(2));
   });
 });

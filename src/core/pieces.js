@@ -99,16 +99,53 @@ const REROLL_ATTEMPTS = 10;
 // Больше — игра легче, меньше — сложнее. Полная гарантия сделала бы игру бесконечной.
 export const MERCY_REROLLS = 2;
 
-export function generatePiece(rng) {
-  return makePiece(rng, pickWeighted(rng, PIECE_VARIANTS));
+// ---------- Сложность ----------
+
+// Очки, к которым сложность достигает максимума.
+export const MAX_DIFFICULTY_SCORE = 6000;
+
+// 0 в начале партии → 1 к MAX_DIFFICULTY_SCORE очков.
+export function difficultyForScore(score) {
+  return Math.min(1, Math.max(0, score / MAX_DIFFICULTY_SCORE));
+}
+
+// Множитель частоты фигуры: с ростом сложности крупные выпадают чаще, мелкие — реже.
+export function sizeFactor(cellCount, difficulty) {
+  const factor = 1 + difficulty * 0.6 * (cellCount - 3);
+  return Math.min(2.5, Math.max(0.3, factor));
+}
+
+const weightedCache = new Map();
+
+// Варианты фигур с весами для данной сложности (кешируется по шагу 0.05).
+function variantsFor(difficulty) {
+  const key = Math.round(difficulty * 20);
+  if (!weightedCache.has(key)) {
+    const d = key / 20;
+    weightedCache.set(
+      key,
+      PIECE_VARIANTS.map((v) => ({ ...v, weight: v.weight * sizeFactor(v.cells.length, d) })),
+    );
+  }
+  return weightedCache.get(key);
+}
+
+export function generatePiece(rng, difficulty = 0) {
+  return makePiece(rng, pickWeighted(rng, variantsFor(difficulty)));
 }
 
 // Новая фигура на место использованной (pieces[slot] уже не учитывается).
-export function refillPiece(board, pieces, slot, rng, rerolls = MERCY_REROLLS) {
+export function refillPiece(
+  board,
+  pieces,
+  slot,
+  rng,
+  { rerolls = MERCY_REROLLS, difficulty = 0 } = {},
+) {
   const withNew = (piece) => pieces.map((p, i) => (i === slot ? piece : p));
-  let piece = generatePiece(rng);
+  let piece = generatePiece(rng, difficulty);
   for (let i = 0; i < rerolls && !hasAnyMove(board, withNew(piece)); i++) {
-    piece = generatePiece(rng);
+    piece = generatePiece(rng, difficulty);
   }
   return piece;
 }
