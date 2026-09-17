@@ -13,7 +13,9 @@ import {
   SHELF_INNER,
   addBlock,
 } from './textures.js';
-import { addText } from './ui.js';
+import { addText, addIconButton, showToast } from './ui.js';
+import { getProgress, setProgress } from '../meta/store.js';
+import { boosterCount, useBooster } from '../meta/progress.js';
 import { loopTween, reducedMotion } from './motion.js';
 
 // Общая часть игровых экранов: поле, лоток, перетаскивание, подсветка, анимации.
@@ -27,9 +29,10 @@ import { loopTween, reducedMotion } from './motion.js';
 export const CELL = 80;
 export const BOARD_PX = CELL * BOARD_SIZE;
 export const BOARD_X = (GAME_WIDTH - BOARD_PX) / 2;
-export const BOARD_Y = 250;
+export const BOARD_Y = 224;
 
-export const TRAY_Y = 1075; // центр лотка с фигурами
+export const TRAY_Y = 1108; // центр лотка с фигурами
+export const BOOSTER_Y = 934; // полоса бустеров между полем и лотком
 // Три слота делят внутреннюю часть полки поровну.
 const TRAY_SLOT_W = SHELF_INNER.width / 3;
 const TRAY_LEFT = (GAME_WIDTH - SHELF_INNER.width) / 2;
@@ -75,10 +78,97 @@ export class BoardScene extends Phaser.Scene {
     this.createParticles();
     this.createPopups();
 
+    this.input.on('pointerdown', (pointer) => this.tapBoardCell(pointer));
     this.input.on('pointermove', (pointer) => this.moveDrag(pointer));
     this.input.on('pointerup', (pointer) => this.endDrag(pointer));
     this.input.on('pointerupoutside', (pointer) => this.endDrag(pointer));
   }
+
+  // ---------- Бустеры ----------
+
+  // Полоса с молотком и обменом. Наследник задаёт, что они делают:
+  // useHammer(row, col) и useSwap().
+  createBoosterBar() {
+    this.hammerMode = false;
+    this.boosterViews = {};
+    const ids = ['hammer', 'swap'];
+    ids.forEach((id, i) => {
+      const x = GAME_WIDTH / 2 + (i - (ids.length - 1) / 2) * 150;
+      const icon = addIconButton(this, x, BOOSTER_Y, TEX[id], () => this.tapBooster(id), 88);
+      const badge = this.add.circle(x + 32, BOOSTER_Y - 30, 21, 0xff3b4e).setStrokeStyle(4, 0xffffff);
+      const count = addText(this, badge.x, badge.y - 1, '0', 26, { stroke: null });
+      this.boosterViews[id] = { icon, badge, count };
+    });
+    this.updateBoosters();
+  }
+
+  updateBoosters() {
+    if (!this.boosterViews) return;
+    const progress = getProgress();
+    for (const [id, view] of Object.entries(this.boosterViews)) {
+      const n = boosterCount(progress, id);
+      view.count.setText(n > 0 ? String(n) : '+');
+      view.badge.setFillStyle(n > 0 ? 0xff3b4e : 0x4fd06a);
+      const active = id === 'hammer' && this.hammerMode;
+      view.icon.setTint(active ? 0xffe08a : 0xffffff);
+    }
+  }
+
+  setBoostersVisible(visible) {
+    if (!this.boosterViews) return;
+    for (const view of Object.values(this.boosterViews)) {
+      view.icon.setVisible(visible);
+      view.badge.setVisible(visible);
+      view.count.setVisible(visible);
+    }
+  }
+
+  tapBooster(id) {
+    if (!this.canUseBoosters()) return;
+    if (boosterCount(getProgress(), id) <= 0) {
+      this.scene.launch('BoosterShop', {
+        boosterId: id,
+        onDone: () => this.updateBoosters(),
+      });
+      return;
+    }
+    if (id === 'hammer') {
+      this.hammerMode = !this.hammerMode;
+      this.updateBoosters();
+      if (this.hammerMode) showToast(this, 'Выбери блок на поле', BOARD_Y + 46);
+      return;
+    }
+    const { progress, ok } = useBooster(getProgress(), 'swap');
+    if (!ok) return;
+    setProgress(progress);
+    this.updateBoosters();
+    this.useSwap();
+  }
+
+  // Молоток: нажатие по занятой клетке поля.
+  tapBoardCell(pointer) {
+    if (!this.hammerMode) return false;
+    const col = Math.floor((pointer.x - BOARD_X) / CELL);
+    const row = Math.floor((pointer.y - BOARD_Y) / CELL);
+    const inside = row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+    if (!inside || this.board[row][col] === null) return false;
+
+    const { progress, ok } = useBooster(getProgress(), 'hammer');
+    if (!ok) return false;
+    setProgress(progress);
+    this.hammerMode = false;
+    this.updateBoosters();
+    this.useHammer(row, col);
+    return true;
+  }
+
+  canUseBoosters() {
+    return true;
+  }
+
+  useHammer() {}
+
+  useSwap() {}
 
   // ---------- Хуки правил ----------
 
@@ -222,6 +312,7 @@ export class BoardScene extends Phaser.Scene {
   startDrag(slot, pointer) {
     const piece = this.pieces[slot];
     if (this.drag || this.placing || !piece || this.returning.has(slot)) return;
+    if (this.hammerMode) return;
     if (!this.canDrag(slot)) return;
 
     const { rows, cols } = pieceSize(piece.cells);

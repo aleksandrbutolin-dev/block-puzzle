@@ -7,6 +7,7 @@ import {
   applyMove,
   densestArea,
   clearArea,
+  removeCell,
 } from '../core/board.js';
 import {
   generateSet,
@@ -71,11 +72,13 @@ export class GameScene extends BoardScene {
     addSoundButton(this);
     addIconButton(this, 58, 58, TEX.home, () => this.goHome());
 
+    this.createBoosterBar();
     this.drawBoard();
     this.drawTray([0, 1, 2]);
     playSound('deal'); // слышно при «Заново»; до первого касания звук ещё закрыт
 
     this.tutorial = getProgress().tutorialDone ? null : new Tutorial(this);
+    if (this.tutorial) this.setBoostersVisible(false);
   }
 
   // ---------- Правила «Классики» ----------
@@ -97,6 +100,26 @@ export class GameScene extends BoardScene {
 
   onDragCancelled() {
     this.tutorial?.onDragCancel();
+  }
+
+  // Во время обучения и после конца партии бустеры недоступны.
+  canUseBoosters() {
+    return !this.isOver && !this.tutorial;
+  }
+
+  useHammer(row, col) {
+    const color = this.board[row][col];
+    this.board = removeCell(this.board, row, col);
+    this.drawBoard();
+    this.popBlock(row, col, color, 0, true);
+    playSound('pop', { lines: 1, streak: 1 });
+  }
+
+  useSwap() {
+    this.pieces = generateSet(this.board, this.rng);
+    this.drawTray([0, 1, 2]);
+    playSound('deal');
+    if (!hasAnyMove(this.board, this.pieces)) this.endGame();
   }
 
   // Выход в меню посреди партии: партия не засчитывается.

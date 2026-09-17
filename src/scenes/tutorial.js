@@ -210,6 +210,7 @@ export class Tutorial {
     const showScore = () => {
       scene.scoreText.setVisible(true);
       scene.bestText.setVisible(true);
+      scene.setBoostersVisible(true);
     };
     if (completed) {
       this.setText('Готово!\nДальше — без подсказок');

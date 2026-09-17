@@ -12,6 +12,7 @@ import { CollectionScene } from './scenes/CollectionScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { LevelScene } from './scenes/LevelScene.js';
 import { LevelResultScene } from './scenes/LevelResultScene.js';
+import { BoosterShopScene } from './scenes/BoosterShopScene.js';
 import { THEME } from './scenes/theme.js';
 import * as audio from './platform/audio.js';
 
@@ -36,7 +37,7 @@ function startGame() {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MenuScene, GameScene, ContinueScene, GameOverScene, TasksScene, CollectionScene, MapScene, LevelScene, LevelResultScene],
+    scene: [BootScene, MenuScene, GameScene, ContinueScene, GameOverScene, TasksScene, CollectionScene, MapScene, LevelScene, LevelResultScene, BoosterShopScene],
     audio: { noAudio: true }, // звук свой — platform/audio.js
     render: { powerPreference: 'high-performance' },
   });

@@ -4,7 +4,13 @@ import { BOARD_SIZE } from '../core/board.js';
 import { generateSet, refillPiece, hasAnyMove } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
-import { createLevelState, applyLevelMove, levelStatus, starsFor } from '../core/level.js';
+import {
+  createLevelState,
+  applyLevelMove,
+  levelStatus,
+  starsFor,
+  hammerCell,
+} from '../core/level.js';
 import { getLevel, LEVELS_TOTAL } from '../core/levels.js';
 import { getProgress } from '../meta/store.js';
 import { currentLevel } from '../meta/progress.js';
@@ -38,6 +44,7 @@ export class LevelScene extends BoardScene {
     addBackdrop(this);
     this.buildBoard();
     this.createHud();
+    this.createBoosterBar();
 
     this.drawBoard();
     this.drawTray([0, 1, 2]);
@@ -48,6 +55,37 @@ export class LevelScene extends BoardScene {
 
   canDrag() {
     return !this.finished;
+  }
+
+  canUseBoosters() {
+    return !this.finished;
+  }
+
+  // Молоток на уровне: лёд теряет слой, кристалл засчитывается, ход не тратится.
+  useHammer(row, col) {
+    const before = this.state;
+    const result = hammerCell(before, row, col);
+    this.state = result.state;
+    this.board = result.state.board;
+    this.drawBoard();
+    for (const [r, c] of result.cleared) this.popBlock(r, c, before.board[r][c] ?? 0, 0, true);
+    for (const [r, c] of result.iceBroken) this.crackIce(r, c);
+    for (const [r, c] of result.gems) this.flyGem(r, c);
+    playSound('pop', { lines: 1, streak: 1 });
+    this.updateHud();
+    this.checkStatus();
+  }
+
+  useSwap() {
+    this.pieces = generateSet(this.board, this.rng);
+    this.drawTray([0, 1, 2]);
+    playSound('deal');
+    this.checkStatus();
+  }
+
+  checkStatus() {
+    const status = levelStatus(this.state, hasAnyMove(this.board, this.pieces));
+    if (status !== 'playing') this.finish(status);
   }
 
   onPlaced(slot, piece, row, col) {
@@ -86,8 +124,7 @@ export class LevelScene extends BoardScene {
     });
     this.drawTray([slot]);
 
-    const status = levelStatus(this.state, hasAnyMove(this.board, this.pieces));
-    if (status !== 'playing') this.finish(status);
+    this.checkStatus();
   }
 
   // ---------- Экран ----------
