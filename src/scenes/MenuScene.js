@@ -9,7 +9,6 @@ import {
   addSoundButton,
   addCoinCounter,
   flyCoins,
-  showToast,
 } from './ui.js';
 import { getProgress, takeCheckInReward } from '../meta/store.js';
 import { STREAK_REWARDS, isTaskDone } from '../meta/progress.js';
@@ -59,7 +58,7 @@ export class MenuScene extends Phaser.Scene {
     });
     if (readyTasks > 0) this.addBadge(tasksButton, readyTasks);
 
-    addButton(this, GAME_WIDTH / 2 + 165, 1080, 'Коллекция', () => this.soon(), {
+    addButton(this, GAME_WIDTH / 2 + 165, 1080, 'Коллекция', () => this.scene.start('Collection'), {
       width: 300,
       height: 110,
       variant: 'pink',
@@ -74,10 +73,6 @@ export class MenuScene extends Phaser.Scene {
     } else {
       this.coins.setValue(progress.coins);
     }
-  }
-
-  soon() {
-    showToast(this, 'Скоро!', 900);
   }
 
   createLogo() {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { plural, taskText, timeUntilTomorrow } from './texts.js';
-import { TASK_TYPES } from './progress.js';
+import { plural, taskText, timeUntilTomorrow, SKIN_NAMES } from './texts.js';
+import { TASK_TYPES, SKINS } from './progress.js';
 
 const forms = ['линию', 'линии', 'линий'];
 
@@ -46,5 +46,11 @@ describe('timeUntilTomorrow', () => {
     expect(timeUntilTomorrow(new Date(2026, 8, 17, 18, 53))).toBe('5 ч 07 мин');
     expect(timeUntilTomorrow(new Date(2026, 8, 17, 23, 59, 30))).toBe('0 ч 01 мин');
     expect(timeUntilTomorrow(new Date(2026, 8, 17, 0, 0))).toBe('24 ч 00 мин');
+  });
+});
+
+describe('SKIN_NAMES', () => {
+  it('у каждой темы есть название', () => {
+    for (const skin of SKINS) expect(SKIN_NAMES[skin.id]).toBeTruthy();
   });
 });

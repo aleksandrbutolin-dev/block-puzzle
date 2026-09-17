@@ -4,8 +4,16 @@
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME, BLOCK_ICONS } from './theme.js';
 
+// Текущая тема блоков (id из SKINS). Меняется через setSkin().
+let currentSkin = 'toys';
+
+export function setSkin(skinId) {
+  currentSkin = skinId;
+}
+
 export const TEX = {
-  block: (color) => `block-${color}`,
+  block: (color) => `block-${currentSkin}-${color}`,
+  blockOf: (skin, color) => `block-${skin}-${color}`,
   blockShadow: 'block-shadow',
   ghostFrame: 'ghost-frame',
   cell: 'cell',
@@ -213,6 +221,103 @@ function drawBlock(ctx, S, base, icon) {
   ctx.arc(S * 0.35, S * 0.13, S * 0.018, 0, Math.PI * 2);
   ctx.fill();
 }
+
+// ---------- Блок: гранёный кристалл ----------
+
+// Восьмиугольник с отступом inset и срезанными углами cut.
+function octagon(S, inset, cut) {
+  const a = inset;
+  const b = S - inset;
+  return [
+    [a + cut, a], [b - cut, a], [b, a + cut], [b, b - cut],
+    [b - cut, b], [a + cut, b], [a, b - cut], [a, a + cut],
+  ];
+}
+
+function polygon(ctx, points) {
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+}
+
+// Грани по кругу: верх, верх-право, право, низ-право, низ, низ-лево, лево, верх-лево.
+const FACET_LIGHT = [0.5, 0.28, -0.12, -0.35, -0.42, -0.22, 0.14, 0.4];
+
+function drawCrystal(ctx, S, base, icon) {
+  // Тень и тёмный контур
+  polygon(ctx, octagon(S, 4, 30).map(([x, y]) => [x, y + 4]));
+  ctx.fillStyle = 'rgba(20, 5, 40, 0.35)';
+  ctx.fill();
+  polygon(ctx, octagon(S, 3, 30));
+  ctx.fillStyle = shade(base, -0.62);
+  ctx.fill();
+
+  const outer = octagon(S, 7, 27);
+  const inner = octagon(S, 30, 13);
+
+  // Грани
+  for (let k = 0; k < 8; k++) {
+    const n = (k + 1) % 8;
+    polygon(ctx, [outer[k], outer[n], inner[n], inner[k]]);
+    ctx.fillStyle = shade(base, FACET_LIGHT[k]);
+    ctx.fill();
+  }
+
+  // Рёбра между гранями
+  ctx.strokeStyle = shade(base, 0.7, 0.45);
+  ctx.lineWidth = 1.5;
+  for (let k = 0; k < 8; k++) {
+    ctx.beginPath();
+    ctx.moveTo(...outer[k]);
+    ctx.lineTo(...inner[k]);
+    ctx.stroke();
+  }
+
+  // Центральная площадка
+  polygon(ctx, inner);
+  const table = ctx.createLinearGradient(0, S * 0.25, S, S * 0.75);
+  table.addColorStop(0, shade(base, 0.35));
+  table.addColorStop(0.5, shade(base, 0.05));
+  table.addColorStop(1, shade(base, -0.15));
+  ctx.fillStyle = table;
+  ctx.fill();
+
+  // Диагональный отблеск на площадке
+  ctx.save();
+  polygon(ctx, inner);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.beginPath();
+  ctx.moveTo(S * 0.2, S * 0.62);
+  ctx.lineTo(S * 0.62, S * 0.2);
+  ctx.lineTo(S * 0.74, S * 0.2);
+  ctx.lineTo(S * 0.2, S * 0.74);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  polygon(ctx, inner);
+  ctx.strokeStyle = shade(base, 0.6, 0.6);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  drawIcon(ctx, icon, S / 2, S / 2, S * 0.15, base);
+
+  // Искра
+  const sx = S * 0.28;
+  const sy = S * 0.2;
+  const r = S * 0.1;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - r);
+  ctx.quadraticCurveTo(sx, sy, sx + r, sy);
+  ctx.quadraticCurveTo(sx, sy, sx, sy + r);
+  ctx.quadraticCurveTo(sx, sy, sx - r, sy);
+  ctx.quadraticCurveTo(sx, sy, sx, sy - r);
+  ctx.fill();
+}
+
+const BLOCK_DRAWERS = { toys: drawBlock, crystals: drawCrystal };
 
 // Мягкая тень под фигурой в руке.
 function drawBlockShadow(ctx, S) {
@@ -569,11 +674,13 @@ function drawStar(ctx, S) {
 // ---------- Публичное API ----------
 
 export function generateTextures(scene, boardPx) {
-  THEME.blocks.forEach((color, i) => {
-    makeCanvas(scene, TEX.block(i), BLOCK_PX, BLOCK_PX, (ctx, S) =>
-      drawBlock(ctx, S, color, BLOCK_ICONS[i]),
-    );
-  });
+  for (const [skin, draw] of Object.entries(BLOCK_DRAWERS)) {
+    THEME.blocks.forEach((color, i) => {
+      makeCanvas(scene, TEX.blockOf(skin, i), BLOCK_PX, BLOCK_PX, (ctx, S) =>
+        draw(ctx, S, color, BLOCK_ICONS[i]),
+      );
+    });
+  }
   makeCanvas(scene, TEX.blockShadow, BLOCK_PX, BLOCK_PX, (ctx, S) => drawBlockShadow(ctx, S));
   makeCanvas(scene, TEX.ghostFrame, BLOCK_PX, BLOCK_PX, (ctx, S) => drawGhostFrame(ctx, S));
   makeCanvas(scene, TEX.cell, BLOCK_PX, BLOCK_PX, (ctx, S) => drawCell(ctx, S));
@@ -592,7 +699,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
 }
 
-// Блок-картинка заданного экранного размера с центром в (x, y).
-export function addBlock(scene, x, y, size, color) {
-  return scene.add.image(x, y, TEX.block(color)).setDisplaySize(size, size);
+// Блок-картинка заданного экранного размера с центром в (x, y). skin — по умолчанию текущая тема.
+export function addBlock(scene, x, y, size, color, skin = currentSkin) {
+  return scene.add.image(x, y, TEX.blockOf(skin, color)).setDisplaySize(size, size);
 }

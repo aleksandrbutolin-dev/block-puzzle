@@ -38,3 +38,8 @@ export function timeUntilTomorrow(now = new Date()) {
   const m = String(minutes % 60).padStart(2, '0');
   return `${h} ч ${m} мин`;
 }
+
+export const SKIN_NAMES = {
+  toys: 'Игрушки',
+  crystals: 'Кристаллы',
+};

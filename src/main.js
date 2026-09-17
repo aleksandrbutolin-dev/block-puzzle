@@ -7,6 +7,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { TasksScene } from './scenes/TasksScene.js';
+import { CollectionScene } from './scenes/CollectionScene.js';
 import { THEME } from './scenes/theme.js';
 import * as audio from './platform/audio.js';
 
@@ -31,7 +32,7 @@ function startGame() {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MenuScene, GameScene, GameOverScene, TasksScene],
+    scene: [BootScene, MenuScene, GameScene, GameOverScene, TasksScene, CollectionScene],
     audio: { noAudio: true }, // звук свой — platform/audio.js
   });
 
