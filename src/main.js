@@ -6,6 +6,7 @@ import { BootScene } from './scenes/BootScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { THEME } from './scenes/theme.js';
+import * as audio from './platform/audio.js';
 
 // Canvas не ждёт шрифты сам: без этого первые надписи нарисуются запасным шрифтом.
 function loadFonts() {
@@ -29,10 +30,17 @@ function startGame() {
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     scene: [BootScene, GameScene, GameOverScene],
+    audio: { noAudio: true }, // звук свой — platform/audio.js
   });
 
+  // Браузер разрешает звук только после касания. Фаза перехвата — раньше, чем игра
+  // обработает то же касание; touchend и click нужны старым iOS.
+  for (const type of ['pointerdown', 'touchend', 'click']) {
+    window.addEventListener(type, audio.unlockAudio, true);
+  }
+
   // Для отладки в консоли браузера (только npm run dev).
-  if (import.meta.env.DEV) window.game = game;
+  if (import.meta.env.DEV) Object.assign(window, { game, audio });
 }
 
 loadFonts().then(startGame);

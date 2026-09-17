@@ -13,6 +13,8 @@ export const TEX = {
   shelf: 'shelf',
   background: 'background',
   cloud: 'cloud',
+  soundOn: 'sound-on',
+  soundOff: 'sound-off',
   spark: 'spark',
   star: 'star',
 };
@@ -395,6 +397,55 @@ function drawCloud(ctx, W, H) {
   ctx.fill();
 }
 
+// Круглая кнопка звука: динамик + волны или крестик.
+function drawSoundIcon(ctx, S, on) {
+  const c = S / 2;
+  ctx.fillStyle = THEME.css.boardBottom;
+  ctx.beginPath();
+  ctx.arc(c, c + 4, c - 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = THEME.css.frameLight;
+  ctx.beginPath();
+  ctx.arc(c, c, c - 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = THEME.css.boardTop;
+  ctx.beginPath();
+  ctx.arc(c, c, c - 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Динамик
+  const u = S / 96;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(c - 22 * u, c - 9 * u);
+  ctx.lineTo(c - 12 * u, c - 9 * u);
+  ctx.lineTo(c + 2 * u, c - 22 * u);
+  ctx.lineTo(c + 2 * u, c + 22 * u);
+  ctx.lineTo(c - 12 * u, c + 9 * u);
+  ctx.lineTo(c - 22 * u, c + 9 * u);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 5 * u;
+  ctx.lineCap = 'round';
+  if (on) {
+    for (const r of [12, 22]) {
+      ctx.beginPath();
+      ctx.arc(c + 4 * u, c, r * u, -0.8, 0.8);
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = '#ff6b7a';
+    ctx.beginPath();
+    ctx.moveTo(c + 10 * u, c - 10 * u);
+    ctx.lineTo(c + 26 * u, c + 10 * u);
+    ctx.moveTo(c + 26 * u, c - 10 * u);
+    ctx.lineTo(c + 10 * u, c + 10 * u);
+    ctx.stroke();
+  }
+}
+
 // ---------- Частицы ----------
 
 function drawSpark(ctx, S) {
@@ -432,6 +483,8 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
   makeCanvas(scene, TEX.cloud, 260, 150, drawCloud);
+  makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
+  makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
   makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
 }

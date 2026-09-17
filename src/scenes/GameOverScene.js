@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
 import { addText, addButton } from './ui.js';
+import { playSound } from '../platform/audio.js';
 
 const PANEL_W = 560;
 const PANEL_H = 620;
@@ -72,6 +73,7 @@ export class GameOverScene extends Phaser.Scene {
     });
 
     if (isNewBest) {
+      this.time.delayedCall(450, () => playSound('fanfare'));
       this.tweens.add({
         targets: bestText,
         scale: 1.12,
@@ -84,6 +86,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   restart() {
+    playSound('button');
     this.scene.stop();
     this.scene.get('Game').scene.restart();
   }

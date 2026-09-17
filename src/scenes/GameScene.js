@@ -5,6 +5,7 @@ import { generateSet, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { loadValue, saveValue } from '../platform/storage.js';
+import { playSound, isMuted, setMuted } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import {
   TEX,
@@ -77,6 +78,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createTray();
     this.createParticles();
+    this.createSoundButton();
 
     this.input.on('pointermove', (pointer) => this.moveDrag(pointer));
     this.input.on('pointerup', (pointer) => this.endDrag(pointer));
@@ -171,6 +173,23 @@ export class GameScene extends Phaser.Scene {
       .setDepth(12);
   }
 
+  createSoundButton() {
+    const button = this.add
+      .image(GAME_WIDTH - 58, 58, isMuted() ? TEX.soundOff : TEX.soundOn)
+      .setDisplaySize(80, 80)
+      .setDepth(20)
+      .setInteractive({ useHandCursor: true });
+    const base = button.scale;
+    button.on('pointerdown', () => button.setScale(base * 0.9));
+    button.on('pointerout', () => button.setScale(base));
+    button.on('pointerup', () => {
+      button.setScale(base);
+      setMuted(!isMuted());
+      button.setTexture(isMuted() ? TEX.soundOff : TEX.soundOn);
+      playSound('button');
+    });
+  }
+
   burst(x, y, color, stars = 1) {
     this.particleTint = THEME.blocks[color];
     this.sparks.explode(5, x, y);
@@ -185,6 +204,7 @@ export class GameScene extends Phaser.Scene {
 
     const { rows, cols } = pieceSize(piece.cells);
     const sprite = this.makePieceView(piece, CELL, true).setDepth(10);
+    playSound('pick');
 
     this.drag = {
       slot,
@@ -243,6 +263,7 @@ export class GameScene extends Phaser.Scene {
     // Мимо — фигура возвращается в лоток.
     const home = slotCenter(drag.slot);
     this.returning.add(drag.slot);
+    playSound('back');
     this.tweens.killTweensOf(drag.sprite);
     this.tweens.add({
       targets: drag.sprite,
@@ -274,6 +295,7 @@ export class GameScene extends Phaser.Scene {
 
     this.drawBoard();
     this.animateLanding(piece, row, col);
+    this.playMoveSounds(scored, boardEmpty);
     if (result.linesCleared > 0) {
       this.animateClear(before, piece, row, col, result.lines);
     }
@@ -286,12 +308,22 @@ export class GameScene extends Phaser.Scene {
     if (this.pieces.every((p) => p === null)) {
       this.pieces = generateSet(this.board, this.rng);
       newSet = true;
+      playSound('deal');
     }
     this.drawTray(newSet);
 
     if (!hasAnyMove(this.board, this.pieces)) {
       this.endGame();
     }
+  }
+
+  playMoveSounds(scored, boardEmpty) {
+    playSound('place');
+    if (scored.combo === 0) return;
+    playSound('pop', { lines: scored.combo, streak: scored.streak });
+    if (scored.combo >= 2) playSound('combo', { lines: scored.combo });
+    if (scored.streak >= 2) playSound('streak');
+    if (boardEmpty) playSound('clearBoard');
   }
 
   // Поставленные блоки сплющиваются и пружинят (squash & stretch).
@@ -416,6 +448,7 @@ export class GameScene extends Phaser.Scene {
 
   // Прежний рекорд побит в этой партии — надпись вспыхивает золотом.
   celebrateBest() {
+    playSound('record');
     this.bestText.setColor(THEME.gold);
     this.tweens.add({
       targets: this.bestText,
@@ -491,6 +524,8 @@ export class GameScene extends Phaser.Scene {
         });
       }
     }
+
+    this.time.delayedCall(250, () => playSound('gameOver'));
 
     // Пауза, чтобы игрок увидел последний ход.
     this.time.delayedCall(800, () => {
