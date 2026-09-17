@@ -27,6 +27,7 @@ export const TEX = {
   soundOn: 'sound-on',
   soundOff: 'sound-off',
   home: 'icon-home',
+  lock: 'icon-lock',
   video: 'icon-video',
   hand: 'hand',
   tasks: 'icon-tasks',
@@ -702,6 +703,30 @@ function drawHomeIcon(ctx, S) {
   ctx.fill();
 }
 
+// Замок на закрытом уровне карты.
+function drawLock(ctx, S) {
+  const u = S / 96;
+  ctx.strokeStyle = '#d8d2ea';
+  ctx.lineWidth = 11 * u;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(S / 2, 44 * u, 19 * u, Math.PI, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = '#6f6890';
+  roundRect(ctx, 22 * u, 44 * u, 52 * u, 44 * u, 12 * u);
+  ctx.fill();
+  ctx.fillStyle = '#9a93b5';
+  roundRect(ctx, 26 * u, 48 * u, 44 * u, 32 * u, 10 * u);
+  ctx.fill();
+  ctx.fillStyle = '#4a4468';
+  ctx.beginPath();
+  ctx.arc(S / 2, 64 * u, 7 * u, 0, Math.PI * 2);
+  ctx.fill();
+  roundRect(ctx, S / 2 - 3 * u, 64 * u, 6 * u, 12 * u, 3 * u);
+  ctx.fill();
+}
+
 // Значок «видео за награду»: экран с треугольником воспроизведения.
 function drawVideoIcon(ctx, S) {
   const u = S / 96;
@@ -855,6 +880,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
+  makeCanvas(scene, TEX.lock, 96, 96, (ctx, S) => drawLock(ctx, S));
   makeCanvas(scene, TEX.video, 96, 96, (ctx, S) => drawVideoIcon(ctx, S));
   makeCanvas(scene, TEX.hand, 128, 128, (ctx, S) => drawHand(ctx, S));
   makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));

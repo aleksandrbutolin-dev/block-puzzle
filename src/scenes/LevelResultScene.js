@@ -86,18 +86,18 @@ export class LevelResultScene extends Phaser.Scene {
     }
 
     // Главная кнопка: дальше по уровням, повтор или выход.
-    const mainLabel = won ? (hasNext ? 'Дальше' : 'В меню') : 'Ещё раз';
+    const mainLabel = won ? (hasNext ? 'Дальше' : 'К карте') : 'Ещё раз';
     const mainAction = () => {
       if (!won) return this.go(levelId);
-      return hasNext ? this.go(levelId + 1) : this.toMenu();
+      return hasNext ? this.go(levelId + 1) : this.toMap();
     };
     panel.add(addButton(this, 0, 230, mainLabel, mainAction, { width: 360, height: 104 }));
 
-    if (mainLabel !== 'В меню') {
-      const toMenu = addText(this, 0, 302, 'В меню', 30, { color: THEME.panelMuted, stroke: null })
+    if (mainLabel !== 'К карте') {
+      const toMap = addText(this, 0, 302, 'К карте', 30, { color: THEME.panelMuted, stroke: null })
         .setInteractive({ useHandCursor: true })
-        .on('pointerup', () => this.toMenu());
-      panel.add(toMenu);
+        .on('pointerup', () => this.toMap());
+      panel.add(toMap);
     }
 
     panel.setScale(0.6).setAlpha(0);
@@ -139,8 +139,8 @@ export class LevelResultScene extends Phaser.Scene {
     this.scene.get('Level').scene.start('Level', { levelId });
   }
 
-  toMenu() {
+  toMap() {
     this.scene.stop();
-    this.scene.get('Level').scene.start('Menu');
+    this.scene.get('Level').scene.start('Map');
   }
 }

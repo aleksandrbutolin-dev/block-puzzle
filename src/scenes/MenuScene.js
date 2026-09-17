@@ -42,7 +42,7 @@ export class MenuScene extends Phaser.Scene {
       GAME_WIDTH / 2,
       540,
       'Приключение',
-      () => this.scene.start('Level'),
+      () => this.scene.start('Map'),
       { width: 500, height: 140, fontSize: 52 },
     );
     this.tweens.add({

@@ -93,7 +93,7 @@ export class LevelScene extends BoardScene {
   // ---------- Экран ----------
 
   createHud() {
-    addIconButton(this, 58, 58, TEX.home, () => this.scene.start('Menu'));
+    addIconButton(this, 58, 58, TEX.home, () => this.scene.start('Map'));
     addSoundButton(this);
     addText(this, GAME_WIDTH / 2, 48, `Уровень ${this.levelId}`, 40);
 
