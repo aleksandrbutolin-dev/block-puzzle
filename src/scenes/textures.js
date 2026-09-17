@@ -35,7 +35,15 @@ const BLOCK_PX = 128; // текстура крупнее экранного ра
 export const BOARD_TEX_PADDING = 22; // рамка вокруг клеток поля
 export const BOARD_TEX_MARGIN = 28; // место под тень
 export const SHELF_SIZE = { width: 688, height: 280 };
-export const SHELF_PANEL_CENTER_Y = 8 + (SHELF_SIZE.height - 44) / 2; // центр панели внутри текстуры
+const SHELF_MARGIN = 8; // отступ панели от края текстуры (сверху ещё место под тень)
+const SHELF_FRAME = 10; // толщина рамки полки
+const SHELF_PANEL_H = SHELF_SIZE.height - 44;
+export const SHELF_PANEL_CENTER_Y = SHELF_MARGIN + SHELF_PANEL_H / 2; // центр панели внутри текстуры
+// Тёмная внутренняя часть полки — фигуры в лотке должны помещаться в неё.
+export const SHELF_INNER = {
+  width: SHELF_SIZE.width - 2 * (SHELF_MARGIN + SHELF_FRAME),
+  height: SHELF_PANEL_H - 2 * SHELF_FRAME,
+};
 
 // ---------- Цвета ----------
 
@@ -423,7 +431,7 @@ function drawBoard(ctx, W, H) {
 }
 
 function drawShelf(ctx, W, H) {
-  drawFramedPanel(ctx, 8, 8, W - 16, H - 44, 40, 10, 0.92);
+  drawFramedPanel(ctx, SHELF_MARGIN, SHELF_MARGIN, W - SHELF_MARGIN * 2, SHELF_PANEL_H, 40, SHELF_FRAME, 0.92);
 }
 
 // ---------- Фон: тёплый закат, облака, холмы ----------

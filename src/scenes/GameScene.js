@@ -14,6 +14,7 @@ import {
   BOARD_TEX_MARGIN,
   SHELF_SIZE,
   SHELF_PANEL_CENTER_Y,
+  SHELF_INNER,
   addBlock,
 } from './textures.js';
 import { addText, addIconButton, addSoundButton } from './ui.js';
@@ -26,9 +27,13 @@ const BOARD_X = (GAME_WIDTH - BOARD_PX) / 2;
 const BOARD_Y = 250;
 
 const TRAY_Y = 1075; // центр лотка с фигурами
-const TRAY_SLOT_W = GAME_WIDTH / 3;
+// Три слота делят внутреннюю часть полки поровну.
+const TRAY_SLOT_W = SHELF_INNER.width / 3;
+const TRAY_LEFT = (GAME_WIDTH - SHELF_INNER.width) / 2;
 const TRAY_SLOT_H = 280; // зона захвата фигуры — крупнее самой фигуры
-const TRAY_CELL = 44; // размер клетки фигуры в лотке
+const TRAY_CELL = 44; // размер клетки фигуры в лотке (крупные фигуры — мельче)
+// Запас от края слота: фигура не должна вылезать за полку даже при покачивании и «выпрыгивании».
+const TRAY_PAD = 14;
 
 // Насколько фигура поднята над точкой касания, чтобы палец её не закрывал.
 const LIFT_TOUCH = 140;
@@ -42,7 +47,15 @@ const cellCenter = (row, col) => ({
   y: BOARD_Y + row * CELL + CELL / 2,
 });
 
-const slotCenter = (slot) => ({ x: TRAY_SLOT_W * slot + TRAY_SLOT_W / 2, y: TRAY_Y });
+const slotCenter = (slot) => ({ x: TRAY_LEFT + TRAY_SLOT_W * slot + TRAY_SLOT_W / 2, y: TRAY_Y });
+
+// Размер клетки фигуры в лотке: 44 px, но не больше, чем позволяет слот.
+function trayCellFor(piece) {
+  const { rows, cols } = pieceSize(piece.cells);
+  const maxW = TRAY_SLOT_W - 2 * TRAY_PAD;
+  const maxH = SHELF_INNER.height - 2 * TRAY_PAD;
+  return Math.min(TRAY_CELL, Math.floor(maxW / cols), Math.floor(maxH / rows));
+}
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -228,7 +241,7 @@ export class GameScene extends Phaser.Scene {
 
     // Фигура плавно вырастает из лотка до размера клеток поля и поднимается над пальцем.
     const from = slotCenter(slot);
-    sprite.setPosition(from.x, from.y).setScale(TRAY_CELL / CELL);
+    sprite.setPosition(from.x, from.y).setScale(trayCellFor(piece) / CELL);
     this.tweens.add({
       targets: sprite,
       scale: 1,
@@ -308,7 +321,7 @@ export class GameScene extends Phaser.Scene {
       targets: drag.sprite,
       x: home.x,
       y: home.y,
-      scale: TRAY_CELL / CELL,
+      scale: trayCellFor(drag.piece) / CELL,
       duration: 260,
       ease: 'Cubic.easeOut',
       onComplete: () => {
@@ -697,7 +710,7 @@ export class GameScene extends Phaser.Scene {
       const { outer, body } = this.trayViews[slot];
       body.removeAll(true);
       if (!piece || this.drag?.slot === slot || this.returning.has(slot)) return;
-      body.add(this.makePieceView(piece, TRAY_CELL));
+      body.add(this.makePieceView(piece, trayCellFor(piece)));
       const order = popSlots.indexOf(slot);
       if (order >= 0) {
         this.tweens.killTweensOf(outer);
