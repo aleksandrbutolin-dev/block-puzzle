@@ -34,6 +34,9 @@ const TRAY_CELL = 44; // размер клетки фигуры в лотке
 const LIFT_TOUCH = 140;
 const LIFT_MOUSE = 20;
 
+// Плавность следования за пальцем: чем больше, тем плотнее фигура «прилипает».
+const FOLLOW_SHARPNESS = 28;
+
 const cellCenter = (row, col) => ({
   x: BOARD_X + col * CELL + CELL / 2,
   y: BOARD_Y + row * CELL + CELL / 2,
@@ -51,6 +54,7 @@ export class GameScene extends Phaser.Scene {
     this.board = createBoard();
     this.pieces = generateSet(this.board, this.rng);
     this.drag = null;
+    this.placing = false; // фигура доезжает до клеток — новый захват ждёт
     this.returning = new Set(); // слоты, чьи фигуры летят обратно в лоток
     this.isOver = false;
     this.scoreState = createScoreState();
@@ -70,6 +74,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createTray();
     this.createParticles();
+    this.createPopups();
     addSoundButton(this);
     addIconButton(this, 58, 58, TEX.home, () => this.goHome());
 
@@ -160,6 +165,29 @@ export class GameScene extends Phaser.Scene {
       .setDepth(12);
   }
 
+  // Надписи «+N», «Комбо», «Серия», «Чистое поле» создаются один раз и переиспользуются:
+  // создание текста на каждом ходу даёт микрозадержки на слабых телефонах.
+  createPopups() {
+    const make = (size, color) => addText(this, 0, 0, '', size, { color }).setDepth(15).setVisible(false);
+    this.popups = {
+      points: make(60, THEME.text),
+      combo: make(48, THEME.gold),
+      streak: make(44, THEME.green),
+      clearBoard: make(52, THEME.cyan),
+    };
+    this.popups.clearBoard.setText('Чистое поле!');
+  }
+
+  // Плавное следование фигуры за пальцем (экспоненциальное сглаживание).
+  update(_time, delta) {
+    const drag = this.drag;
+    if (!drag) return;
+    const k = 1 - Math.exp((-FOLLOW_SHARPNESS * delta) / 1000);
+    const { sprite } = drag;
+    sprite.x += (drag.goalX - sprite.x) * k;
+    sprite.y += (drag.goalY - drag.liftNow - sprite.y) * k;
+  }
+
   // Выход в меню посреди партии: партия не засчитывается.
   goHome() {
     if (this.isOver) return;
@@ -177,7 +205,7 @@ export class GameScene extends Phaser.Scene {
 
   startDrag(slot, pointer) {
     const piece = this.pieces[slot];
-    if (this.isOver || this.drag || !piece || this.returning.has(slot)) return;
+    if (this.isOver || this.drag || this.placing || !piece || this.returning.has(slot)) return;
 
     const { rows, cols } = pieceSize(piece.cells);
     const sprite = this.makePieceView(piece, CELL, true).setDepth(10);
@@ -191,13 +219,28 @@ export class GameScene extends Phaser.Scene {
       cols,
       pointerId: pointer.id,
       lift: pointer.wasTouch ? LIFT_TOUCH : LIFT_MOUSE,
+      liftNow: 0, // подъём над пальцем нарастает плавно
+      goalX: 0,
+      goalY: 0,
       target: null,
     };
 
-    // Фигура «выпрыгивает» из лотка до размера клеток поля — с перелётом.
+    // Фигура плавно вырастает из лотка до размера клеток поля и поднимается над пальцем.
     const from = slotCenter(slot);
     sprite.setPosition(from.x, from.y).setScale(TRAY_CELL / CELL);
-    this.tweens.add({ targets: sprite, scale: 1, duration: 220, ease: 'Back.easeOut' });
+    this.tweens.add({
+      targets: sprite,
+      scale: 1,
+      duration: 200,
+      ease: 'Back.easeOut',
+      easeParams: [1.1],
+    });
+    this.tweens.add({
+      targets: this.drag,
+      liftNow: this.drag.lift,
+      duration: 180,
+      ease: 'Cubic.easeOut',
+    });
 
     this.drawTray();
     this.moveDrag(pointer);
@@ -207,9 +250,12 @@ export class GameScene extends Phaser.Scene {
     const drag = this.drag;
     if (!drag || pointer.id !== drag.pointerId) return;
 
-    const cx = pointer.x;
-    const cy = pointer.y - drag.lift - (drag.rows * CELL) / 2;
-    drag.sprite.setPosition(cx, cy);
+    // Цель — под пальцем; сама фигура догоняет её в update().
+    // Клетку считаем по полному подъёму, чтобы подсветка не прыгала, пока фигура поднимается.
+    drag.goalX = pointer.x;
+    drag.goalY = pointer.y - (drag.rows * CELL) / 2;
+    const cx = drag.goalX;
+    const cy = drag.goalY - drag.lift;
 
     const left = cx - (drag.cols * CELL) / 2;
     const top = cy - (drag.rows * CELL) / 2;
@@ -230,10 +276,26 @@ export class GameScene extends Phaser.Scene {
     this.drag = null;
     this.drawPreview();
 
+    this.tweens.killTweensOf(drag);
+    this.tweens.killTweensOf(drag.sprite);
+
     if (drag.target) {
-      this.tweens.killTweensOf(drag.sprite);
-      drag.sprite.destroy();
-      this.makeMove(drag.slot, drag.piece, drag.target.row, drag.target.col);
+      // Фигура мягко доезжает до своих клеток и только потом ставится.
+      const { row, col } = drag.target;
+      this.placing = true;
+      this.tweens.add({
+        targets: drag.sprite,
+        x: BOARD_X + (col + drag.cols / 2) * CELL,
+        y: BOARD_Y + (row + drag.rows / 2) * CELL,
+        scale: 1,
+        duration: 90,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          drag.sprite.destroy();
+          this.placing = false;
+          this.makeMove(drag.slot, drag.piece, row, col);
+        },
+      });
       return;
     }
 
@@ -241,14 +303,13 @@ export class GameScene extends Phaser.Scene {
     const home = slotCenter(drag.slot);
     this.returning.add(drag.slot);
     playSound('back');
-    this.tweens.killTweensOf(drag.sprite);
     this.tweens.add({
       targets: drag.sprite,
       x: home.x,
       y: home.y,
       scale: TRAY_CELL / CELL,
-      duration: 220,
-      ease: 'Back.easeOut',
+      duration: 260,
+      ease: 'Cubic.easeOut',
       onComplete: () => {
         drag.sprite.destroy();
         this.returning.delete(drag.slot);
@@ -280,7 +341,7 @@ export class GameScene extends Phaser.Scene {
       this.animateClear(before, piece, row, col, result.lines);
     }
     if (result.linesCleared >= 2 || boardEmpty) {
-      this.shakeBoard(result.linesCleared);
+      this.pulseCamera(result.linesCleared);
     }
     this.showMovePopups(scored, piece, row, col);
 
@@ -310,14 +371,14 @@ export class GameScene extends Phaser.Scene {
       const view = this.blockViews[row + dr][col + dc];
       if (!view.visible) continue; // блок сразу ушёл в очищенную линию
       this.tweens.killTweensOf(view);
-      view.setScale(base * 1.2, base * 0.78);
+      view.setScale(base * 1.12, base * 0.88);
       this.tweens.add({
         targets: view,
         scaleX: base,
         scaleY: base,
-        duration: 380,
-        ease: 'Elastic.easeOut',
-        easeParams: [1.2, 0.5],
+        duration: 260,
+        ease: 'Back.easeOut',
+        easeParams: [2],
       });
     }
   }
@@ -386,8 +447,18 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  shakeBoard(lines) {
-    this.cameras.main.shake(220, 0.004 + Math.min(lines, 4) * 0.002);
+  // Мягкий «вдох» камеры на комбо вместо тряски.
+  pulseCamera(lines) {
+    const camera = this.cameras.main;
+    this.tweens.killTweensOf(camera);
+    camera.setZoom(1);
+    this.tweens.add({
+      targets: camera,
+      zoom: 1.012 + Math.min(lines, 4) * 0.004,
+      duration: 140,
+      yoyo: true,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   // ---------- Счёт ----------
@@ -443,42 +514,50 @@ export class GameScene extends Phaser.Scene {
     const x = BOARD_X + (col + cols / 2) * CELL;
     const y = BOARD_Y + (row + rows / 2) * CELL;
 
-    const lines = [{ text: `+${scored.points}`, size: 60, color: THEME.text }];
+    const { popups } = this;
+    const lines = [];
+    popups.points.setText(`+${scored.points}`);
+    lines.push(popups.points);
     if (scored.combo >= 2) {
-      lines.push({ text: `Комбо ×${scored.combo}`, size: 48, color: THEME.gold });
+      popups.combo.setText(`Комбо ×${scored.combo}`);
+      lines.push(popups.combo);
     }
     if (scored.streak >= 2) {
-      lines.push({ text: `Серия ×${scored.streak}`, size: 44, color: THEME.green });
+      popups.streak.setText(`Серия ×${scored.streak}`);
+      lines.push(popups.streak);
     }
-    if (scored.bonusPoints > 0) {
-      lines.push({ text: 'Чистое поле!', size: 52, color: THEME.cyan });
-    }
+    if (scored.bonusPoints > 0) lines.push(popups.clearBoard);
 
-    lines.forEach((line, i) => {
-      const label = addText(this, x, y + i * 62, line.text, line.size, {
-        color: line.color,
-      }).setDepth(15);
+    lines.forEach((label, i) => {
       // Не даём надписи вылезти за край экрана.
       const half = label.width / 2 + 8;
-      label.x = Phaser.Math.Clamp(x, half, GAME_WIDTH - half);
-      label.setScale(0).setAngle(i % 2 ? 6 : -6);
-      this.tweens.add({
+      const startY = y + i * 62;
+      this.tweens.killTweensOf(label);
+      label
+        .setVisible(true)
+        .setPosition(Phaser.Math.Clamp(x, half, GAME_WIDTH - half), startY)
+        .setAlpha(1)
+        .setScale(0)
+        .setAngle(i % 2 ? 4 : -4);
+      this.tweens.chain({
         targets: label,
-        scale: 1,
-        angle: 0,
-        duration: 320,
-        delay: i * 110,
-        ease: 'Back.easeOut',
-        easeParams: [3],
-      });
-      this.tweens.add({
-        targets: label,
-        y: label.y - 100,
-        alpha: 0,
-        duration: 650,
-        delay: 650 + i * 110,
-        ease: 'Quad.easeIn',
-        onComplete: () => label.destroy(),
+        tweens: [
+          {
+            scale: 1,
+            angle: 0,
+            duration: 300,
+            delay: i * 100,
+            ease: 'Back.easeOut',
+          },
+          {
+            y: startY - 90,
+            alpha: 0,
+            duration: 600,
+            delay: 350,
+            ease: 'Sine.easeIn',
+            onComplete: () => label.setVisible(false),
+          },
+        ],
       });
     });
   }
@@ -618,10 +697,10 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({
           targets: outer,
           scale: 1,
-          duration: 380,
+          duration: 360,
           delay: 120 + order * 110,
           ease: 'Back.easeOut',
-          easeParams: [2.2],
+          easeParams: [1.5],
         });
       }
     });

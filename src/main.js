@@ -34,6 +34,7 @@ function startGame() {
     },
     scene: [BootScene, MenuScene, GameScene, GameOverScene, TasksScene, CollectionScene],
     audio: { noAudio: true }, // звук свой — platform/audio.js
+    render: { powerPreference: 'high-performance' },
   });
 
   // Браузер разрешает звук только после касания. Фаза перехвата — раньше, чем игра

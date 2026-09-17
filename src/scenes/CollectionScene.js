@@ -143,7 +143,11 @@ export class CollectionScene extends Phaser.Scene {
     if (!ok) {
       const missing = skin.price - getProgress().coins;
       showToast(this, `Не хватает ${missing} ${plural(missing, ['монеты', 'монет', 'монет'])}`, card.y + CARD_H / 2);
-      this.cameras.main.shake(150, 0.004);
+      // Кнопка мягко качается «нет-нет» вместо тряски экрана.
+      const button = card.list[card.list.length - 1];
+      this.tweens.killTweensOf(button);
+      button.setAngle(0).setScale(1);
+      this.tweens.add({ targets: button, angle: 4, duration: 70, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
       return;
     }
     setProgress(progress);
