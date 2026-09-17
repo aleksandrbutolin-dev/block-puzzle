@@ -20,6 +20,8 @@ export const TEX = {
   board: 'board',
   shelf: 'shelf',
   background: 'background',
+  ice: (layers) => `ice-${layers}`,
+  gem: 'gem',
   cloud: 'cloud',
   coin: 'coin',
   soundOn: 'sound-on',
@@ -328,6 +330,89 @@ function drawCrystal(ctx, S, base, icon) {
 }
 
 const BLOCK_DRAWERS = { toys: drawBlock, crystals: drawCrystal };
+
+// ---------- Лёд и кристаллы (уровни «Приключения») ----------
+
+// Ледяная корка поверх блока: чем больше слоёв, тем плотнее.
+function drawIce(ctx, S, layers) {
+  const inset = 4;
+  const w = S - inset * 2;
+  const radius = S * 0.24;
+  ctx.save();
+  roundRect(ctx, inset, inset, w, w, radius);
+  ctx.clip();
+
+  const fill = ctx.createLinearGradient(0, inset, 0, inset + w);
+  const alpha = layers > 1 ? 0.82 : 0.6;
+  fill.addColorStop(0, `rgba(235, 250, 255, ${alpha})`);
+  fill.addColorStop(1, `rgba(150, 215, 245, ${alpha})`);
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, S, S);
+
+  // Грани льда
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = layers > 1 ? 5 : 4;
+  ctx.lineCap = 'round';
+  const cracks = layers > 1
+    ? [[0.15, 0.2, 0.5, 0.45], [0.5, 0.45, 0.85, 0.3], [0.5, 0.45, 0.45, 0.85], [0.2, 0.75, 0.5, 0.62]]
+    : [[0.2, 0.3, 0.55, 0.55], [0.55, 0.55, 0.8, 0.45]];
+  for (const [x1, y1, x2, y2] of cracks) {
+    ctx.beginPath();
+    ctx.moveTo(x1 * S, y1 * S);
+    ctx.lineTo(x2 * S, y2 * S);
+    ctx.stroke();
+  }
+
+  // Блик
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(S * 0.32, S * 0.26, S * 0.16, S * 0.08, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.lineWidth = 4;
+  roundRect(ctx, inset + 2, inset + 2, w - 4, w - 4, radius - 2);
+  ctx.stroke();
+}
+
+// Кристалл поверх блока — цель «собери кристаллы».
+function drawGem(ctx, S) {
+  const cx = S / 2;
+  const cy = S / 2;
+  const r = S * 0.3;
+  const points = [
+    [cx, cy - r],
+    [cx + r * 0.85, cy - r * 0.15],
+    [cx + r * 0.5, cy + r],
+    [cx - r * 0.5, cy + r],
+    [cx - r * 0.85, cy - r * 0.15],
+  ];
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+  ctx.fillStyle = '#7fe8ff';
+  ctx.fill();
+  ctx.strokeStyle = '#1a5f80';
+  ctx.lineWidth = S * 0.05;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Грани
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = S * 0.03;
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.85, cy - r * 0.15);
+  ctx.lineTo(cx, cy + r * 0.1);
+  ctx.lineTo(cx + r * 0.85, cy - r * 0.15);
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx, cy + r * 0.1);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath();
+  ctx.ellipse(cx - r * 0.3, cy - r * 0.35, r * 0.16, r * 0.09, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+}
 
 // Мягкая тень под фигурой в руке.
 function drawBlockShadow(ctx, S) {
@@ -762,6 +847,9 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.board, boardSize, boardSize, drawBoard);
   makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
+  makeCanvas(scene, TEX.ice(1), BLOCK_PX, BLOCK_PX, (ctx, S) => drawIce(ctx, S, 1));
+  makeCanvas(scene, TEX.ice(2), BLOCK_PX, BLOCK_PX, (ctx, S) => drawIce(ctx, S, 2));
+  makeCanvas(scene, TEX.gem, BLOCK_PX, BLOCK_PX, (ctx, S) => drawGem(ctx, S));
   makeCanvas(scene, TEX.cloud, 260, 150, drawCloud);
   makeCanvas(scene, TEX.coin, 96, 96, (ctx, S) => drawCoin(ctx, S));
   makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));

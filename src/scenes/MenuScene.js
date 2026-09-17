@@ -11,7 +11,8 @@ import {
   flyCoins,
 } from './ui.js';
 import { getProgress, takeCheckInReward } from '../meta/store.js';
-import { STREAK_REWARDS, isTaskDone } from '../meta/progress.js';
+import { STREAK_REWARDS, isTaskDone, currentLevel, totalStars } from '../meta/progress.js';
+import { LEVELS_TOTAL } from '../core/levels.js';
 import { playSound } from '../platform/audio.js';
 
 // Цвета блоков в логотипе.
@@ -30,26 +31,43 @@ export class MenuScene extends Phaser.Scene {
     addSoundButton(this);
 
     this.createLogo();
-    addText(this, GAME_WIDTH / 2, 470, `Рекорд: ${progress.best}`, 40);
-
-    const play = addButton(this, GAME_WIDTH / 2, 610, 'Играть', () => this.scene.start('Game'), {
-      width: 460,
-      height: 130,
-      fontSize: 64,
+    addText(this, GAME_WIDTH / 2, 412, `Рекорд в «Классике»: ${progress.best}`, 30, {
+      color: THEME.textMuted,
     });
+
+    // Приключение — главная кнопка, «Классика» — рядом.
+    const level = currentLevel(progress, LEVELS_TOTAL);
+    const play = addButton(
+      this,
+      GAME_WIDTH / 2,
+      540,
+      'Приключение',
+      () => this.scene.start('Level'),
+      { width: 500, height: 140, fontSize: 52 },
+    );
     this.tweens.add({
       targets: play,
-      scale: 1.05,
+      scale: 1.04,
       duration: 700,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+    addText(this, GAME_WIDTH / 2, 630, `Уровень ${level} · ★ ${totalStars(progress)}`, 30, {
+      color: THEME.textMuted,
+    });
+
+    addButton(this, GAME_WIDTH / 2, 710, 'Классика', () => this.scene.start('Game'), {
+      width: 360,
+      height: 96,
+      fontSize: 40,
+      variant: 'blue',
+    });
 
     this.createStreakRow(progress.streak.count);
 
     const readyTasks = progress.daily.tasks.filter((t) => isTaskDone(t) && !t.claimed).length;
-    const tasksButton = addButton(this, GAME_WIDTH / 2 - 165, 1080, 'Задания', () => this.scene.start('Tasks'), {
+    const tasksButton = addButton(this, GAME_WIDTH / 2 - 165, 1090, 'Задания', () => this.scene.start('Tasks'), {
       width: 300,
       height: 110,
       variant: 'blue',
@@ -58,7 +76,7 @@ export class MenuScene extends Phaser.Scene {
     });
     if (readyTasks > 0) this.addBadge(tasksButton, readyTasks);
 
-    addButton(this, GAME_WIDTH / 2 + 165, 1080, 'Коллекция', () => this.scene.start('Collection'), {
+    addButton(this, GAME_WIDTH / 2 + 165, 1090, 'Коллекция', () => this.scene.start('Collection'), {
       width: 300,
       height: 110,
       variant: 'pink',
@@ -114,7 +132,7 @@ export class MenuScene extends Phaser.Scene {
 
   // Ряд из 7 дней серии: пройденные — золотые, сегодняшний — крупнее.
   createStreakRow(streakCount) {
-    const y = 840;
+    const y = 915;
     const panel = this.add.graphics();
     panel.fillStyle(0x1e2958, 0.88);
     panel.fillRoundedRect(30, y - 115, GAME_WIDTH - 60, 225, 36);
