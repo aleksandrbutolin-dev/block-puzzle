@@ -50,7 +50,7 @@ export class MenuScene extends Phaser.Scene {
     this.createStreakRow(progress.streak.count);
 
     const readyTasks = progress.daily.tasks.filter((t) => isTaskDone(t) && !t.claimed).length;
-    const tasksButton = addButton(this, GAME_WIDTH / 2 - 165, 1080, 'Задания', () => this.soon(), {
+    const tasksButton = addButton(this, GAME_WIDTH / 2 - 165, 1080, 'Задания', () => this.scene.start('Tasks'), {
       width: 300,
       height: 110,
       variant: 'blue',

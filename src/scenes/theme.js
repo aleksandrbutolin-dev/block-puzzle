@@ -16,6 +16,7 @@ export const THEME = {
 
   font: '"Nunito", Arial, sans-serif',
   text: '#ffffff',
+  textMuted: '#fde8ff', // второстепенный светлый текст
   outline: '#3a1d5c', // обводка мультяшных надписей
   gold: '#ffd84a',
   green: '#7dff8a',

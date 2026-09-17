@@ -14,7 +14,7 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create({ score, best, isNewBest, coinsEarned = 0 }) {
+  create({ score, best, isNewBest, coinsEarned = 0, tasksDone = [] }) {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
@@ -84,6 +84,21 @@ export class GameOverScene extends Phaser.Scene {
       delay: 450,
       ease: 'Quad.easeOut',
       onUpdate: () => scoreText.setText(String(Math.round(counter.value))),
+    });
+
+    // Задания, выполненные последней партией, — плашка над окном.
+    tasksDone.forEach((task, i) => {
+      const banner = addText(this, cx, 228 - i * 62, `Задание выполнено! +${task.reward}`, 38, {
+        color: THEME.gold,
+      }).setScale(0);
+      this.tweens.add({
+        targets: banner,
+        scale: 1,
+        duration: 400,
+        delay: 700 + i * 200,
+        ease: 'Back.easeOut',
+        onStart: () => playSound('record'),
+      });
     });
 
     if (isNewBest) {

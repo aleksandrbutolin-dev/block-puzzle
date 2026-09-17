@@ -519,7 +519,6 @@ export class GameScene extends Phaser.Scene {
     const isNewBest = score > this.bestAtStart;
     const ended = recordGameEnd(getProgress(), { score });
     setProgress(ended.progress);
-    ended.completed.forEach((task, i) => this.showTaskDone(task, i));
 
     // Поле «засыпает»: блоки по очереди тускнеют сверху вниз.
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -544,7 +543,7 @@ export class GameScene extends Phaser.Scene {
         best: this.best,
         isNewBest,
         coinsEarned: ended.coins,
-        coins: ended.progress.coins,
+        tasksDone: ended.completed,
       });
     });
   }
