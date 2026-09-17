@@ -17,6 +17,7 @@ import {
   QUICK_LOSS_MOVES,
   claimTask,
   coinsForScore,
+  addCoins,
   buySkin,
   selectSkin,
 } from './progress.js';
@@ -300,5 +301,13 @@ describe('помощь после быстрых проигрышей', () => {
     p = recordGameEnd(p, { score: 10 }).progress;
     p = recordGameEnd(p, { score: 10 }).progress;
     expect(needsAssist(p)).toBe(false);
+  });
+});
+
+describe('addCoins', () => {
+  it('добавляет монеты и не меняет исходный объект', () => {
+    const p = { ...createProgress(), coins: 10 };
+    expect(addCoins(p, 5).coins).toBe(15);
+    expect(p.coins).toBe(10);
   });
 });

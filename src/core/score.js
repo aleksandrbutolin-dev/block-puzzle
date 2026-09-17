@@ -49,3 +49,13 @@ export function scoreMove(state, { cellsPlaced, linesCleared, boardEmpty = false
     multiplier,
   };
 }
+
+// Отметки внутри бесконечной партии: каждые MILESTONE_STEP очков — праздник и награда.
+export const MILESTONE_STEP = 1000;
+
+// Отметки, пройденные при росте счёта с before до after: [1000, 2000, …].
+export function milestonesCrossed(before, after, step = MILESTONE_STEP) {
+  const result = [];
+  for (let m = (Math.floor(before / step) + 1) * step; m <= after; m += step) result.push(m);
+  return result;
+}

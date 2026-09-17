@@ -19,9 +19,16 @@ import {
   MERCY_REROLLS,
 } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
-import { createScoreState, scoreMove } from '../core/score.js';
+import { createScoreState, scoreMove, milestonesCrossed } from '../core/score.js';
 import { getProgress, setProgress } from '../meta/store.js';
-import { recordMove, recordGameEnd, updateBest, needsAssist } from '../meta/progress.js';
+import {
+  recordMove,
+  recordGameEnd,
+  updateBest,
+  needsAssist,
+  addCoins,
+  MILESTONE_COINS,
+} from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import {
@@ -368,9 +375,17 @@ export class GameScene extends Phaser.Scene {
     this.pieces[slot] = null;
 
     const boardEmpty = this.board.every((line) => line.every((cell) => cell === null));
+    const scoreBefore = this.scoreState.score;
     const scored = scoreMove(this.scoreState, { ...result, boardEmpty });
     this.scoreState = scored.state;
     this.updateScore();
+
+    const milestones = milestonesCrossed(scoreBefore, scored.state.score);
+    if (milestones.length > 0) {
+      const coins = milestones.length * MILESTONE_COINS;
+      setProgress(addCoins(getProgress(), coins));
+      this.showMilestone(milestones[milestones.length - 1], coins);
+    }
     const tracked = recordMove(getProgress(), { ...result, streak: scored.streak, boardEmpty });
     setProgress(tracked.progress);
     tracked.completed.forEach((task, i) => this.showTaskDone(task, i));
@@ -609,6 +624,37 @@ export class GameScene extends Phaser.Scene {
         ],
       });
     });
+  }
+
+  // «1000!» над полем: крупная золотая надпись, монеты, звёзды.
+  showMilestone(value, coins) {
+    const cx = GAME_WIDTH / 2;
+    const cy = BOARD_Y + BOARD_PX / 2 - 60;
+    const title = addText(this, 0, 0, `${value}!`, 120, { color: THEME.gold, stroke: '#8a4a0c' });
+    const coinIcon = this.add.image(0, 0, TEX.coin).setDisplaySize(64, 64);
+    const coinText = addText(this, 0, 0, `+${coins}`, 52, { color: THEME.gold, stroke: '#8a4a0c' });
+    const rowWidth = coinIcon.displayWidth + 10 + coinText.width - coinText.padding.left * 2;
+    coinIcon.setPosition(-rowWidth / 2 + coinIcon.displayWidth / 2, 95);
+    coinText.setPosition(coinIcon.x + coinIcon.displayWidth / 2 + 10 + (coinText.width - coinText.padding.left * 2) / 2, 95);
+
+    const banner = this.add.container(cx, cy, [title, coinIcon, coinText]).setDepth(30);
+    banner.setScale(0).setAngle(-8);
+    this.tweens.chain({
+      targets: banner,
+      tweens: [
+        { scale: 1, angle: 0, duration: 420, ease: 'Back.easeOut' },
+        { y: cy - 70, alpha: 0, duration: 450, delay: 900, ease: 'Sine.easeIn', onComplete: () => banner.destroy() },
+      ],
+    });
+
+    // Звёзды всех цветов вокруг надписи.
+    for (let i = 0; i < 7; i++) {
+      const angle = (i / 7) * Math.PI * 2;
+      this.time.delayedCall(120 + i * 40, () =>
+        this.burst(cx + Math.cos(angle) * 170, cy + Math.sin(angle) * 80, i, 2),
+      );
+    }
+    this.time.delayedCall(150, () => playSound('fanfare'));
   }
 
   // Плашка «Задание выполнено!» сверху. Подробный экран заданий — в меню.

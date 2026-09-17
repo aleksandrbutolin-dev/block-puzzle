@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { createScoreState, scoreMove, streakMultiplier, CLEAR_BOARD_BONUS } from './score.js';
+import {
+  createScoreState,
+  scoreMove,
+  streakMultiplier,
+  milestonesCrossed,
+  CLEAR_BOARD_BONUS,
+} from './score.js';
 
 function play(moves) {
   let state = createScoreState();
@@ -96,5 +102,25 @@ describe('чистое поле', () => {
 
   it('без очистки бонуса нет', () => {
     expect(play([{ cellsPlaced: 1, linesCleared: 0, boardEmpty: true }]).results[0].bonusPoints).toBe(0);
+  });
+});
+
+describe('milestonesCrossed', () => {
+  it('пересечение одной отметки', () => {
+    expect(milestonesCrossed(950, 1010)).toEqual([1000]);
+  });
+
+  it('ровно на отметке — засчитывается один раз', () => {
+    expect(milestonesCrossed(900, 1000)).toEqual([1000]);
+    expect(milestonesCrossed(1000, 1050)).toEqual([]);
+  });
+
+  it('без пересечения и несколько сразу', () => {
+    expect(milestonesCrossed(100, 900)).toEqual([]);
+    expect(milestonesCrossed(1900, 4100)).toEqual([2000, 3000, 4000]);
+  });
+
+  it('свой шаг', () => {
+    expect(milestonesCrossed(0, 250, 100)).toEqual([100, 200]);
   });
 });

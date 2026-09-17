@@ -156,6 +156,13 @@ export function recordMove(progress, { linesCleared = 0, streak = 0, boardEmpty 
   return { progress: next, completed };
 }
 
+// Награда за отметку внутри партии («1000!»).
+export const MILESTONE_COINS = 5;
+
+export function addCoins(progress, amount) {
+  return { ...progress, coins: progress.coins + amount };
+}
+
 export function coinsForScore(score) {
   return Math.floor(score / POINTS_PER_COIN);
 }
