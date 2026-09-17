@@ -3,6 +3,7 @@ import {
   createLevelState,
   applyLevelMove,
   levelStatus,
+  hammerCell,
   goalsDone,
   starsFor,
 } from './level.js';
@@ -165,5 +166,45 @@ describe('поле уровня совместимо с обычными фиг�
     const state = levelWithRow('##......');
     const result = () => applyLevelMove(state, SQUARE_2, 6, 0, 1, 0);
     expect(result).toThrow(); // place бросает ошибку на занятой клетке
+  });
+});
+
+describe('hammerCell (молоток на уровне)', () => {
+  it('убирает обычный блок', () => {
+    const state = levelWithRow('##......');
+    const result = hammerCell(state, 7, 0);
+    expect(result.state.board[7][0]).toBeNull();
+    expect(result.cleared).toEqual([[7, 0]]);
+    expect(filled(state)).toBe(2); // исходное состояние не изменилось
+  });
+
+  it('по льду в два слоя: снимает слой, блок остаётся', () => {
+    const state = levelWithRow('J#......', { ice: 2 });
+    const first = hammerCell(state, 7, 0);
+    expect(first.state.ice[7][0]).toBe(1);
+    expect(first.state.board[7][0]).not.toBeNull();
+    expect(first.state.goals[0].progress).toBe(1);
+
+    const second = hammerCell(first.state, 7, 0);
+    expect(second.state.ice[7][0]).toBe(0);
+    expect(second.state.board[7][0]).toBeNull();
+    expect(second.state.goals[0].progress).toBe(2);
+  });
+
+  it('кристалл засчитывается', () => {
+    const state = levelWithRow('G#......', { gems: 1 });
+    const result = hammerCell(state, 7, 0);
+    expect(result.gems).toEqual([[7, 0]]);
+    expect(result.state.goals[0].progress).toBe(1);
+  });
+
+  it('по пустой клетке ничего не делает', () => {
+    const state = levelWithRow('##......');
+    expect(hammerCell(state, 0, 0).state).toBe(state);
+  });
+
+  it('ход не тратится', () => {
+    const state = levelWithRow('##......');
+    expect(hammerCell(state, 7, 0).state.movesLeft).toBe(state.movesLeft);
   });
 });

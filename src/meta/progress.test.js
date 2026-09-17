@@ -29,6 +29,11 @@ import {
   isChapterClaimed,
   claimChapter,
   COINS_PER_STAR,
+  BOOSTERS,
+  boosterCount,
+  addBooster,
+  useBooster,
+  buyBooster,
   buySkin,
   selectSkin,
 } from './progress.js';
@@ -440,5 +445,51 @@ describe('награда за главу', () => {
     const p = migrateProgress({ levels: { stars: { 1: 3 } } });
     expect(p.levels.chapters).toEqual([]);
     expect(isChapterClaimed(p, 1)).toBe(false);
+  });
+});
+
+describe('бустеры', () => {
+  it('на старте по одному на пробу', () => {
+    const p = createProgress();
+    expect(boosterCount(p, 'hammer')).toBe(1);
+    expect(boosterCount(p, 'swap')).toBe(1);
+    expect(boosterCount(p, 'нет такого')).toBe(0);
+  });
+
+  it('расход уменьшает счётчик и не уходит в минус', () => {
+    const p = createProgress();
+    const first = useBooster(p, 'hammer');
+    expect(first.ok).toBe(true);
+    expect(boosterCount(first.progress, 'hammer')).toBe(0);
+    expect(boosterCount(p, 'hammer')).toBe(1); // исходный объект не изменился
+
+    const second = useBooster(first.progress, 'hammer');
+    expect(second.ok).toBe(false);
+    expect(second.progress).toBe(first.progress);
+  });
+
+  it('покупка списывает монеты', () => {
+    const rich = { ...createProgress(), coins: 100 };
+    const { progress, ok } = buyBooster(rich, 'hammer');
+    expect(ok).toBe(true);
+    expect(progress.coins).toBe(100 - BOOSTERS.hammer.price);
+    expect(boosterCount(progress, 'hammer')).toBe(2);
+  });
+
+  it('не хватает монет — покупки нет', () => {
+    const poor = { ...createProgress(), coins: 10 };
+    const result = buyBooster(poor, 'hammer');
+    expect(result.ok).toBe(false);
+    expect(result.progress).toBe(poor);
+  });
+
+  it('награда за рекламу добавляет бустеры', () => {
+    const p = addBooster(createProgress(), 'swap', BOOSTERS.swap.perAd);
+    expect(boosterCount(p, 'swap')).toBe(1 + BOOSTERS.swap.perAd);
+  });
+
+  it('старое сохранение без бустеров получает стартовые', () => {
+    const p = migrateProgress({ coins: 5 });
+    expect(boosterCount(p, 'hammer')).toBe(1);
   });
 });

@@ -11,6 +11,12 @@ export const POINTS_PER_COIN = 100; // монета за каждые 100 очк
 export const STREAK_REWARDS = [10, 15, 20, 25, 30, 40, 100]; // дни 1–7, дальше по кругу
 export const COINS_PER_STAR = 15; // за каждую новую звезду в «Приключении»
 
+// Бустеры: цена в монетах и сколько даётся за просмотр рекламы.
+export const BOOSTERS = {
+  hammer: { price: 80, perAd: 1 }, // убрать одну клетку
+  swap: { price: 60, perAd: 2 }, // заменить все три фигуры
+};
+
 export const SKINS = [
   { id: 'toys', price: 0 },
   { id: 'crystals', price: 500 },
@@ -40,6 +46,7 @@ export function createProgress() {
     daily: { day: null, tasks: [] },
     skins: { owned: ['toys'], selected: 'toys' },
     levels: { stars: {}, chapters: [] }, // звёзды по уровням и полученные награды за главы
+    boosters: { hammer: 1, swap: 1 }, // по одному на пробу
     stats: { games: 0, lines: 0, pieces: 0, quickLosses: 0 },
   };
 }
@@ -67,6 +74,7 @@ export function migrateProgress(saved, legacyBest = 0) {
       chapters: [...(saved.levels?.chapters ?? [])],
     },
     stats: { ...base.stats, ...saved.stats },
+    boosters: { ...base.boosters, ...saved.boosters },
   };
 }
 
@@ -279,6 +287,35 @@ export function completeLevel(progress, id, stars, coinsPerStar = COINS_PER_STAR
   const coins = newStars * coinsPerStar;
   next.coins += coins;
   return { progress: next, newStars, coins };
+}
+
+// ---------- Бустеры ----------
+
+export function boosterCount(progress, id) {
+  return progress.boosters[id] ?? 0;
+}
+
+export function addBooster(progress, id, amount = 1) {
+  const next = clone(progress);
+  next.boosters[id] = boosterCount(progress, id) + amount;
+  return next;
+}
+
+// Потратить бустер. ok = false, если его нет.
+export function useBooster(progress, id) {
+  if (boosterCount(progress, id) <= 0) return { progress, ok: false };
+  const next = clone(progress);
+  next.boosters[id] -= 1;
+  return { progress: next, ok: true };
+}
+
+// Купить за монеты.
+export function buyBooster(progress, id) {
+  const booster = BOOSTERS[id];
+  if (!booster || progress.coins < booster.price) return { progress, ok: false };
+  const next = addBooster(progress, id, 1);
+  next.coins -= booster.price;
+  return { progress: next, ok: true };
 }
 
 // ---------- Темы ----------

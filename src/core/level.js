@@ -117,6 +117,32 @@ export function applyLevelMove(state, cells, row, col, color, points = 0) {
   return { state: next, lines, linesCleared, cleared, iceBroken, gems };
 }
 
+// Молоток на уровне: со льдом снимает слой, иначе убирает блок (кристалл засчитывается).
+export function hammerCell(state, row, col) {
+  if (state.board[row][col] === null) return { state, iceBroken: [], gems: [], cleared: [] };
+  const next = clone(state);
+  const iceBroken = [];
+  const gems = [];
+  const cleared = [];
+
+  if (next.ice[row][col] > 0) {
+    next.ice[row][col] -= 1;
+    iceBroken.push([row, col]);
+  }
+  if (next.ice[row][col] === 0) {
+    if (next.gem[row][col]) {
+      next.gem[row][col] = false;
+      gems.push([row, col]);
+    }
+    next.board[row][col] = null;
+    cleared.push([row, col]);
+  }
+
+  addProgress(next, 'gems', gems.length);
+  addProgress(next, 'ice', iceBroken.length);
+  return { state: next, iceBroken, gems, cleared };
+}
+
 // 'playing' | 'won' | 'lost'. hasMoves — можно ли поставить хоть одну фигуру из лотка.
 export function levelStatus(state, hasMoves = true) {
   if (goalsDone(state)) return 'won';

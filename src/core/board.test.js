@@ -11,6 +11,7 @@ import {
   findDropTarget,
   densestArea,
   clearArea,
+  removeCell,
 } from './board.js';
 
 const DOT = [[0, 0]];
@@ -279,5 +280,23 @@ describe('densestArea / clearArea', () => {
     const next = clearArea(full, row, col, 4);
     expect(canPlaceAnywhere(next, SQUARE_2)).toBe(true);
     expect(canPlaceAnywhere(next, LINE_H3)).toBe(true);
+  });
+});
+
+describe('removeCell (молоток)', () => {
+  it('убирает блок и не трогает соседей', () => {
+    const board = place(createBoard(), SQUARE_2, 2, 2, 5);
+    const next = removeCell(board, 2, 2);
+    expect(next[2][2]).toBeNull();
+    expect(next[2][3]).toBe(5);
+    expect(filledCount(next)).toBe(3);
+    expect(filledCount(board)).toBe(4); // исходное поле не изменилось
+  });
+
+  it('пустая клетка и клетка за краем — поле не меняется', () => {
+    const board = place(createBoard(), DOT, 0, 0, 1);
+    expect(removeCell(board, 5, 5)).toBe(board);
+    expect(removeCell(board, -1, 0)).toBe(board);
+    expect(removeCell(board, 0, 8)).toBe(board);
   });
 });

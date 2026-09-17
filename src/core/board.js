@@ -136,3 +136,11 @@ export function clearArea(board, row, col, size) {
   }
   return next;
 }
+
+// Убрать одну клетку (бустер «молоток»). Возвращает новое поле.
+export function removeCell(board, row, col) {
+  if (!isInside(board, row, col) || board[row][col] === null) return board;
+  const next = board.map((line) => line.slice());
+  next[row][col] = null;
+  return next;
+}
