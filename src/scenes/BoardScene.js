@@ -3,7 +3,7 @@ import { GAME_WIDTH } from '../config.js';
 import { BOARD_SIZE, place, findFullLines, findDropTarget } from '../core/board.js';
 import { pieceSize } from '../core/pieces.js';
 import { playSound } from '../platform/audio.js';
-import { THEME } from './theme.js';
+import { THEME, DEPTH } from './theme.js';
 import {
   TEX,
   BOARD_TEX_PADDING,
@@ -26,13 +26,13 @@ import { loopTween, reducedMotion } from './motion.js';
 //   onDragCancelled(slot) — фигура вернулась в лоток.
 
 // Раскладка экрана 720×1280.
-export const CELL = 80;
+export const CELL = 76;
 export const BOARD_PX = CELL * BOARD_SIZE;
 export const BOARD_X = (GAME_WIDTH - BOARD_PX) / 2;
-export const BOARD_Y = 224;
+export const BOARD_Y = 214;
 
-export const TRAY_Y = 1108; // центр лотка с фигурами
-export const BOOSTER_Y = 934; // полоса бустеров между полем и лотком
+export const TRAY_Y = 1106; // центр лотка с фигурами
+export const BOOSTER_Y = 916; // полоса бустеров между полем и лотком
 // Три слота делят внутреннюю часть полки поровну.
 const TRAY_SLOT_W = SHELF_INNER.width / 3;
 const TRAY_LEFT = (GAME_WIDTH - SHELF_INNER.width) / 2;
@@ -93,11 +93,14 @@ export class BoardScene extends Phaser.Scene {
     this.boosterViews = {};
     const ids = ['hammer', 'swap'];
     ids.forEach((id, i) => {
-      const x = GAME_WIDTH / 2 + (i - (ids.length - 1) / 2) * 150;
-      const icon = addIconButton(this, x, BOOSTER_Y, TEX[id], () => this.tapBooster(id), 88);
-      const badge = this.add.circle(x + 50, BOOSTER_Y - 46, 20, 0xff3b4e).setStrokeStyle(4, 0xffffff);
-      const count = addText(this, badge.x, badge.y - 1, '0', 28, { stroke: null });
-      this.boosterViews[id] = { icon, badge, count };
+      // Группа: значок и количество рядом — так ничего не перекрывает значок.
+      const x = GAME_WIDTH / 2 + (i - (ids.length - 1) / 2) * 216;
+      const pill = this.add.graphics().setDepth(DEPTH.hud - 1);
+      pill.fillStyle(0x241041, 0.3);
+      pill.fillRoundedRect(x - 92, BOOSTER_Y - 50, 184, 100, 50);
+      const icon = addIconButton(this, x - 34, BOOSTER_Y, TEX[id], () => this.tapBooster(id), 84);
+      const count = addText(this, x + 34, BOOSTER_Y, '', 34, { color: THEME.gold });
+      this.boosterViews[id] = { icon, count, pill };
     });
     this.updateBoosters();
   }
@@ -107,8 +110,8 @@ export class BoardScene extends Phaser.Scene {
     const progress = getProgress();
     for (const [id, view] of Object.entries(this.boosterViews)) {
       const n = boosterCount(progress, id);
-      view.count.setText(n > 0 ? String(n) : '+');
-      view.badge.setFillStyle(n > 0 ? 0xff3b4e : 0x4fd06a);
+      view.count.setText(n > 0 ? `×${n}` : '+');
+      view.count.setColor(n > 0 ? THEME.gold : THEME.green);
       const active = id === 'hammer' && this.hammerMode;
       view.icon.setTint(active ? 0xffe08a : 0xffffff);
     }
@@ -118,8 +121,10 @@ export class BoardScene extends Phaser.Scene {
     if (!this.boosterViews) return;
     for (const view of Object.values(this.boosterViews)) {
       view.icon.setVisible(visible);
-      view.badge.setVisible(visible);
       view.count.setVisible(visible);
+      view.pill.setVisible(visible);
+      if (visible) view.icon.zone.setInteractive();
+      else view.icon.zone.disableInteractive();
     }
   }
 

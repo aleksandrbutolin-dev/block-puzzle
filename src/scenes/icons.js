@@ -27,9 +27,9 @@ function roundRect(ctx, x, y, w, h, r) {
 function badge(ctx, S) {
   const c = S / 2;
   ctx.save();
-  ctx.shadowColor = 'rgba(40, 14, 60, 0.45)';
-  ctx.shadowBlur = S * 0.08;
-  ctx.shadowOffsetY = S * 0.04;
+  ctx.shadowColor = 'rgba(40, 14, 60, 0.22)';
+  ctx.shadowBlur = S * 0.045;
+  ctx.shadowOffsetY = S * 0.02;
   const ring = ctx.createLinearGradient(0, 0, 0, S);
   ring.addColorStop(0, RING);
   ring.addColorStop(1, RING_DARK);

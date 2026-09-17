@@ -9,13 +9,18 @@ import {
   addSoundButton,
   addCoinCounter,
   flyCoins,
-  addStarCount,
 } from './ui.js';
 import { getProgress, takeCheckInReward } from '../meta/store.js';
 import { STREAK_REWARDS, isTaskDone, currentLevel, totalStars } from '../meta/progress.js';
 import { LEVELS_TOTAL } from '../core/levels.js';
 import { playSound } from '../platform/audio.js';
 import { loopTween, reducedMotion } from './motion.js';
+
+// Цвета карточек режимов: лицо, боковина, блик, обводка текста.
+const CARD_COLORS = {
+  green: [0x3fb75c, 0x25793a, 0x8ff0a0, '#1f6b34'],
+  blue: [0x3f6fe0, 0x2a4aa0, 0x9dbcff, '#1d3a8a'],
+};
 
 // Цвета блоков в логотипе.
 const LOGO_BLOCKS = [0, 1, 2, 3, 4, 5, 6];
@@ -33,44 +38,44 @@ export class MenuScene extends Phaser.Scene {
     addSoundButton(this);
 
     this.createLogo();
-    addText(this, GAME_WIDTH / 2, 436, `Рекорд в «Классике»: ${progress.best}`, 30, {
-      color: THEME.textMuted,
-    });
 
-    // Приключение — главная кнопка, «Классика» — рядом.
+    // Выбор режима: две карточки с названием и пояснением, что внутри.
+    addText(this, GAME_WIDTH / 2, 330, 'Выбери режим игры', 32, { color: THEME.textMuted });
+
     const level = currentLevel(progress, LEVELS_TOTAL);
-    const play = addButton(
-      this,
-      GAME_WIDTH / 2,
-      540,
-      'Приключение',
-      () => this.scene.start('Map'),
-      { width: 500, height: 140, fontSize: 52 },
-    );
-    loopTween(this, { targets: play, scale: 1.04, duration: 700, ease: 'Sine.easeInOut' });
-    const levelLabel = addText(this, GAME_WIDTH / 2 - 60, 632, `Уровень ${level}`, 30, {
-      color: THEME.textMuted,
+    const adventure = this.modeCard(456, {
+      variant: 'green',
+      title: 'Приключение',
+      desc: 'Уровни с целями и звёздами',
+      meta: `Уровень ${level} из ${LEVELS_TOTAL} · звёзд ${totalStars(progress)}`,
+      icon: (x, y) => this.add.image(x, y, TEX.star).setDisplaySize(62, 62),
+      onTap: () => this.scene.start('Map'),
     });
-    addStarCount(this, levelLabel.x + levelLabel.width / 2 + 40, 632, totalStars(progress), 32);
+    loopTween(this, { targets: adventure, scale: 1.03, duration: 900, ease: 'Sine.easeInOut' });
 
-    addButton(this, GAME_WIDTH / 2, 710, 'Классика', () => this.scene.start('Game'), {
-      width: 360,
-      height: 96,
-      fontSize: 40,
+    this.modeCard(654, {
       variant: 'blue',
+      title: 'Классика',
+      desc: 'Бесконечная игра на рекорд',
+      meta: `Рекорд: ${progress.best}`,
+      icon: (x, y) => addBlock(this, x, y, 58, 5),
+      onTap: () => this.scene.start('Game'),
     });
 
     this.createStreakRow(progress.streak.count);
 
     const readyTasks = progress.daily.tasks.filter((t) => isTaskDone(t) && !t.claimed).length;
-    const tasksButton = addButton(this, GAME_WIDTH / 2 - 165, 1090, 'Задания', () => this.scene.start('Tasks'), {
+    addButton(this, GAME_WIDTH / 2 - 165, 1090, 'Задания', () => this.scene.start('Tasks'), {
       width: 300,
       height: 110,
       variant: 'blue',
       fontSize: 36,
       icon: TEX.tasks,
     });
-    if (readyTasks > 0) this.addBadge(tasksButton, readyTasks);
+    // Готовые награды показываем подписью под кнопкой, а не значком поверх неё.
+    if (readyTasks > 0) {
+      addText(this, GAME_WIDTH / 2 - 165, 1172, `Награды: ${readyTasks}`, 30, { color: THEME.gold });
+    }
 
     addButton(this, GAME_WIDTH / 2 + 165, 1090, 'Коллекция', () => this.scene.start('Collection'), {
       width: 300,
@@ -90,25 +95,25 @@ export class MenuScene extends Phaser.Scene {
   }
 
   createLogo() {
-    const size = 72;
+    const size = 60;
     const gap = 6;
     const total = LOGO_BLOCKS.length * size + (LOGO_BLOCKS.length - 1) * gap;
     LOGO_BLOCKS.forEach((color, i) => {
       const x = GAME_WIDTH / 2 - total / 2 + size / 2 + i * (size + gap);
-      const block = addBlock(this, x, 190, size, color);
+      const block = addBlock(this, x, 150, size, color);
       const base = block.scale;
       block.setScale(0);
       this.tweens.add({ targets: block, scale: base, duration: 400, delay: 100 + i * 70, ease: 'Back.easeOut' });
       loopTween(this, {
         targets: block,
-        y: 175,
+        y: 136,
         duration: 500,
         delay: 500 + i * 90,
         repeatDelay: 1800,
         ease: 'Sine.easeInOut',
       });
     });
-    const title = addText(this, GAME_WIDTH / 2, 312, 'Блок-пазл', 100);
+    const title = addText(this, GAME_WIDTH / 2, 232, 'Блок-пазл', 78);
     title.setAngle(-3);
     loopTween(this, { targets: title, angle: 3, duration: 1600, ease: 'Sine.easeInOut' });
     if (reducedMotion) title.setAngle(0);
@@ -148,11 +153,54 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
-  addBadge(button, count) {
-    const badge = this.add.container(button.x + 130, button.y - 50).setDepth(25);
-    const circle = this.add.circle(0, 0, 26, 0xff3b4e).setStrokeStyle(4, 0xffffff);
-    badge.add([circle, addText(this, 0, -1, String(count), 30, { stroke: null })]);
-    loopTween(this, { targets: badge, scale: 1.15, duration: 500 });
+  // Карточка режима: название, пояснение и строка прогресса.
+  modeCard(y, { variant, title, desc, meta, icon, onTap }) {
+    const W = 620;
+    const H = 176;
+    const [face, side, highlight, textStroke] = CARD_COLORS[variant];
+    const card = this.add.container(GAME_WIDTH / 2, y);
+
+    const g = this.add.graphics();
+    g.fillStyle(0x2a1040, 0.18);
+    g.fillRoundedRect(-W / 2, -H / 2 + 14, W, H, 40);
+    g.fillStyle(side, 1);
+    g.fillRoundedRect(-W / 2, -H / 2 + 10, W, H, 40);
+    g.fillStyle(face, 1);
+    g.fillRoundedRect(-W / 2, -H / 2, W, H, 40);
+    g.fillStyle(highlight, 0.55);
+    g.fillRoundedRect(-W / 2 + 22, -H / 2 + 8, W - 44, 34, 17);
+
+    const plate = this.add.circle(-W / 2 + 84, 0, 54, 0xffffff, 0.22).setStrokeStyle(4, 0xffffff, 0.5);
+    const art = icon(plate.x, 0);
+
+    const left = -W / 2 + 156;
+    const titleText = addText(this, left, -46, title, 46, { stroke: textStroke }).setOrigin(0, 0.5);
+    titleText.x = left - titleText.padding.left;
+    const descText = addText(this, left, 10, desc, 26, { stroke: null }).setOrigin(0, 0.5);
+    descText.x = left - descText.padding.left;
+    const metaText = addText(this, left, 56, meta, 26, { color: THEME.gold, stroke: null }).setOrigin(0, 0.5);
+    metaText.x = left - metaText.padding.left;
+
+    // Стрелка «дальше» у правого края.
+    const arrow = this.add.graphics();
+    arrow.fillStyle(0xffffff, 0.85);
+    arrow.beginPath();
+    arrow.moveTo(W / 2 - 66, -22);
+    arrow.lineTo(W / 2 - 38, 0);
+    arrow.lineTo(W / 2 - 66, 22);
+    arrow.lineTo(W / 2 - 54, 0);
+    arrow.closePath();
+    arrow.fillPath();
+
+    card.add([g, plate, art, titleText, descText, metaText, arrow]);
+
+    const zone = this.add.zone(0, 0, W, H).setInteractive({ useHandCursor: true });
+    card.add(zone);
+    zone.on('pointerdown', () => {
+      playSound('button');
+      this.tweens.add({ targets: card, scale: 0.97, duration: 90, yoyo: true, onComplete: onTap });
+    });
+    return card;
   }
 
   // Окно «Награда за вход».

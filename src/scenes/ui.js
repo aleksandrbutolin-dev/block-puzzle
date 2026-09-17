@@ -25,7 +25,8 @@ export function addText(scene, x, y, text, size, style = {}) {
     .setOrigin(0.5);
 
   if (outline && shadow) {
-    label.setShadow(0, Math.round(size * 0.08), outline, 0, true, true);
+    // Мягкая тень: небольшое смещение и полупрозрачный цвет обводки.
+    label.setShadow(0, Math.max(2, Math.round(size * 0.045)), THEME.textShadow, 0, false, true);
   }
   return label;
 }
@@ -101,7 +102,7 @@ export function addIconButton(scene, x, y, texture, onClick, size = 92) {
   const button = scene.add.image(x, y, texture).setDisplaySize(size, size).setDepth(DEPTH.hud);
   const base = button.scale;
   const side = Math.max(size, MIN_TAP);
-  scene.add
+  const zone = scene.add
     .zone(x, y, side, side)
     .setDepth(DEPTH.hud)
     .setInteractive({ useHandCursor: true })
@@ -111,6 +112,7 @@ export function addIconButton(scene, x, y, texture, onClick, size = 92) {
       button.setScale(base);
       onClick(button);
     });
+  button.zone = zone; // чтобы вызывающий мог выключить нажатие вместе с показом
   return button;
 }
 

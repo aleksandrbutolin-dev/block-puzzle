@@ -18,6 +18,7 @@ export const THEME = {
   text: '#ffffff',
   textMuted: '#fde8ff', // второстепенный светлый текст
   outline: '#3a1d5c', // обводка мультяшных надписей
+  textShadow: 'rgba(58, 29, 92, 0.45)', // мягкая тень под надписью
   gold: '#ffd84a',
   green: '#7dff8a',
   cyan: '#7fe8ff',

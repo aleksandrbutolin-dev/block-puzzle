@@ -342,10 +342,10 @@ const BLOCK_DRAWERS = { toys: drawBlock, crystals: drawCrystal };
 
 // Мягкая тень под фигурой в руке.
 function drawBlockShadow(ctx, S) {
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     const grow = i * 3;
-    ctx.fillStyle = 'rgba(10, 5, 30, 0.13)';
-    roundRect(ctx, 14 - grow, 14 - grow, S - 28 + grow * 2, S - 28 + grow * 2, S * 0.24 + grow);
+    ctx.fillStyle = 'rgba(10, 5, 30, 0.07)';
+    roundRect(ctx, 18 - grow, 18 - grow, S - 36 + grow * 2, S - 36 + grow * 2, S * 0.24 + grow);
     ctx.fill();
   }
 }
@@ -379,7 +379,7 @@ function drawCell(ctx, S) {
   roundRect(ctx, inset, inset, w, w - 3, radius);
   ctx.clip();
   const inner = ctx.createLinearGradient(0, inset, 0, inset + w * 0.4);
-  inner.addColorStop(0, 'rgba(0, 0, 15, 0.55)');
+  inner.addColorStop(0, 'rgba(0, 0, 15, 0.38)');
   inner.addColorStop(1, 'rgba(0, 0, 15, 0)');
   ctx.fillStyle = inner;
   ctx.fillRect(0, 0, S, S);
@@ -391,11 +391,11 @@ function drawCell(ctx, S) {
 function drawFramedPanel(ctx, x, y, w, h, radius, frame, alpha = 1) {
   // Тень
   ctx.save();
-  ctx.shadowColor = 'rgba(60, 15, 60, 0.5)';
-  ctx.shadowBlur = 26;
-  ctx.shadowOffsetY = 14;
+  ctx.shadowColor = 'rgba(60, 15, 60, 0.26)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 5;
   ctx.fillStyle = THEME.css.frameShadow;
-  roundRect(ctx, x, y + 8, w, h, radius);
+  roundRect(ctx, x, y + 4, w, h, radius);
   ctx.fill();
   ctx.restore();
 
@@ -431,7 +431,7 @@ function drawFramedPanel(ctx, x, y, w, h, radius, frame, alpha = 1) {
   roundRect(ctx, ix, iy, iw, ih, ir);
   ctx.clip();
   const lip = ctx.createLinearGradient(0, iy, 0, iy + 24);
-  lip.addColorStop(0, 'rgba(0, 0, 20, 0.5)');
+  lip.addColorStop(0, 'rgba(0, 0, 20, 0.3)');
   lip.addColorStop(1, 'rgba(0, 0, 20, 0)');
   ctx.fillStyle = lip;
   ctx.fillRect(ix, iy, iw, 24);

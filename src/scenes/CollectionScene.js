@@ -67,8 +67,8 @@ export class CollectionScene extends Phaser.Scene {
     const card = this.add.container(CARD_X, y);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x3f2266, 0.6);
-    bg.fillRoundedRect(0, 8, CARD_W, CARD_H, 36);
+    bg.fillStyle(0x3f2266, 0.32);
+    bg.fillRoundedRect(0, 5, CARD_W, CARD_H, 36);
     bg.fillStyle(selected ? 0x7dff8a : 0xffd9a0, 1);
     bg.fillRoundedRect(0, 0, CARD_W, CARD_H, 36);
     bg.fillStyle(0x1e2958, 1);

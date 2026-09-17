@@ -25,8 +25,8 @@ import { BoardScene, BOARD_X, BOARD_Y, BOARD_PX, CELL, cellCenter } from './Boar
 const GOAL_LABELS = { score: 'Очки', lines: 'Линии', gems: 'Кристаллы', ice: 'Лёд' };
 
 // Шапка: две карточки одной высоты под заголовком уровня.
-const HUD_TOP = 88;
-const HUD_H = 124;
+const HUD_TOP = 98;
+const HUD_H = 92;
 
 // «Приключение»: уровень с целями и лимитом ходов.
 export class LevelScene extends BoardScene {
@@ -134,9 +134,9 @@ export class LevelScene extends BoardScene {
   // ---------- Экран ----------
 
   createHud() {
-    addIconButton(this, 58, 58, TEX.home, () => this.scene.start('Map'));
+    addIconButton(this, 58, 48, TEX.home, () => this.scene.start('Map'));
     addSoundButton(this);
-    addText(this, GAME_WIDTH / 2, 48, `Уровень ${this.levelId}`, 40);
+    addText(this, GAME_WIDTH / 2, 40, `Уровень ${this.levelId}`, 36);
 
     // Ходы
     const panel = this.add.graphics();
@@ -144,12 +144,14 @@ export class LevelScene extends BoardScene {
     panel.fillRoundedRect(40, HUD_TOP, 170, HUD_H, 28);
     panel.lineStyle(4, 0xffd9a0, 1);
     panel.strokeRoundedRect(40, HUD_TOP, 170, HUD_H, 28);
-    addText(this, 125, HUD_TOP + 30, 'Ходы', 30, { color: THEME.textMuted });
-    this.movesText = addText(this, 125, HUD_TOP + 92, '', 44);
+    addText(this, 125, HUD_TOP + 26, 'Ходы', 28, { color: THEME.textMuted });
+    this.movesText = addText(this, 125, HUD_TOP + 64, '', 38);
 
     // Цели
     const goals = this.state.goals;
-    const width = 430;
+    // Три цели в одной карточке — надписи мельче, иначе они сходятся вплотную.
+    const many = goals.length > 2;
+    const width = many ? 460 : 430;
     const left = GAME_WIDTH - 40 - width;
     const goalPanel = this.add.graphics();
     goalPanel.fillStyle(0x1e2958, 0.9);
@@ -161,18 +163,19 @@ export class LevelScene extends BoardScene {
     this.goalViews = goals.map((goal, i) => {
       const step = width / goals.length;
       const x = left + step * i + step / 2;
-      addText(this, x, HUD_TOP + 34, GOAL_LABELS[goal.type], 30, { color: THEME.textMuted });
-      const icon = this.goalIcon(goal.type, x - 48, HUD_TOP + 92);
-      const text = addText(this, x + 24, HUD_TOP + 92, '', 38);
+      addText(this, x, HUD_TOP + 26, GOAL_LABELS[goal.type], many ? 24 : 28, { color: THEME.textMuted });
+      const icon = this.goalIcon(goal.type, x - (many ? 40 : 44), HUD_TOP + 64, many);
+      const text = addText(this, x + (many ? 18 : 22), HUD_TOP + 64, '', many ? 30 : 34);
       return { index: i, type: goal.type, text, icon };
     });
     this.updateHud();
   }
 
-  goalIcon(type, x, y) {
-    if (type === 'gems') return this.add.image(x, y, TEX.gem).setDisplaySize(52, 52);
-    if (type === 'ice') return this.add.image(x, y, TEX.ice(1)).setDisplaySize(46, 46);
-    if (type === 'lines') return addBlock(this, x, y, 46, 3);
+  goalIcon(type, x, y, small = false) {
+    const k = small ? 0.82 : 1;
+    if (type === 'gems') return this.add.image(x, y, TEX.gem).setDisplaySize(52 * k, 52 * k);
+    if (type === 'ice') return this.add.image(x, y, TEX.ice(1)).setDisplaySize(46 * k, 46 * k);
+    if (type === 'lines') return addBlock(this, x, y, 46 * k, 3);
     return this.add.image(x, y, TEX.coin).setDisplaySize(46, 46).setVisible(false);
   }
 

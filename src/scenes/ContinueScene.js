@@ -32,8 +32,8 @@ export class ContinueScene extends Phaser.Scene {
 
     const panel = this.add.container(cx, cy);
     const bg = this.add.graphics();
-    bg.fillStyle(0x2a1040, 0.35);
-    bg.fillRoundedRect(-PANEL_W / 2, -PANEL_H / 2 + 16, PANEL_W, PANEL_H, 48);
+    bg.fillStyle(0x2a1040, 0.2);
+    bg.fillRoundedRect(-PANEL_W / 2, -PANEL_H / 2 + 9, PANEL_W, PANEL_H, 48);
     bg.fillStyle(0xe8cfe0, 1);
     bg.fillRoundedRect(-PANEL_W / 2, -PANEL_H / 2 + 8, PANEL_W, PANEL_H, 48);
     bg.fillStyle(THEME.panel, 1);

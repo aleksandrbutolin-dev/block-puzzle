@@ -156,8 +156,8 @@ export class MapScene extends Phaser.Scene {
 
     const circle = this.add.graphics();
     const fill = stars > 0 ? 0x4fd06a : unlocked ? 0xffc93a : 0x6f6890;
-    circle.fillStyle(0x2a1040, 0.35);
-    circle.fillCircle(x, y + 6, NODE_R);
+    circle.fillStyle(0x2a1040, 0.22);
+    circle.fillCircle(x, y + 4, NODE_R);
     circle.fillStyle(fill, 1);
     circle.fillCircle(x, y, NODE_R);
     circle.lineStyle(6, 0xffffff, unlocked ? 0.9 : 0.4);
