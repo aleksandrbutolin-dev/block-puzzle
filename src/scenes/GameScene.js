@@ -4,7 +4,8 @@ import { BOARD_SIZE, createBoard, canPlace, place, findFullLines, applyMove } fr
 import { generateSet, refillPiece, hasAnyMove, pieceSize } from '../core/pieces.js';
 import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
-import { loadValue, saveValue } from '../platform/storage.js';
+import { getProgress, setProgress } from '../meta/store.js';
+import { recordMove, recordGameEnd, updateBest } from '../meta/progress.js';
 import { playSound, isMuted, setMuted } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import {
@@ -59,7 +60,7 @@ export class GameScene extends Phaser.Scene {
     this.returning = new Set(); // слоты, чьи фигуры летят обратно в лоток
     this.isOver = false;
     this.scoreState = createScoreState();
-    this.bestAtStart = loadValue('best', 0);
+    this.bestAtStart = getProgress().best;
     this.best = this.bestAtStart;
     this.shownScore = 0;
 
@@ -293,6 +294,9 @@ export class GameScene extends Phaser.Scene {
     const scored = scoreMove(this.scoreState, { ...result, boardEmpty });
     this.scoreState = scored.state;
     this.updateScore();
+    const tracked = recordMove(getProgress(), { ...result, streak: scored.streak, boardEmpty });
+    setProgress(tracked.progress);
+    tracked.completed.forEach((task, i) => this.showTaskDone(task, i));
 
     this.drawBoard();
     this.animateLanding(piece, row, col);
@@ -418,7 +422,7 @@ export class GameScene extends Phaser.Scene {
     if (score > this.best) {
       const firstTime = this.best === this.bestAtStart && this.bestAtStart > 0;
       this.best = score;
-      saveValue('best', score); // сразу, чтобы рекорд не пропал при закрытии вкладки
+      setProgress(updateBest(getProgress(), score)); // сразу, чтобы рекорд не пропал при закрытии вкладки
       this.updateBestText();
       if (firstTime) this.celebrateBest();
     }
@@ -504,10 +508,43 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Плашка «Задание выполнено!» сверху. Подробный экран заданий — в меню.
+  showTaskDone(task, index) {
+    const y = 250 + index * 90;
+    const label = addText(this, GAME_WIDTH / 2, y, `Задание выполнено! +${task.reward}`, 38, {
+      color: THEME.gold,
+    }).setDepth(25);
+    const bg = this.add
+      .rectangle(GAME_WIDTH / 2, y, label.width + 20, 78, 0x1e2958, 0.92)
+      .setStrokeStyle(4, 0xffd84a)
+      .setDepth(24);
+    const group = [bg, label];
+    for (const item of group) item.setScale(0);
+    this.time.delayedCall(250 + index * 200, () => playSound('record'));
+    this.tweens.add({
+      targets: group,
+      scale: 1,
+      duration: 350,
+      delay: 250 + index * 200,
+      ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: group,
+      alpha: 0,
+      y: y - 40,
+      duration: 400,
+      delay: 2200 + index * 200,
+      onComplete: () => group.forEach((item) => item.destroy()),
+    });
+  }
+
   endGame() {
     this.isOver = true;
     const score = this.scoreState.score;
     const isNewBest = score > this.bestAtStart;
+    const ended = recordGameEnd(getProgress(), { score });
+    setProgress(ended.progress);
+    ended.completed.forEach((task, i) => this.showTaskDone(task, i));
 
     // Поле «засыпает»: блоки по очереди тускнеют сверху вниз.
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -527,7 +564,13 @@ export class GameScene extends Phaser.Scene {
 
     // Пауза, чтобы игрок увидел последний ход.
     this.time.delayedCall(800, () => {
-      this.scene.launch('GameOver', { score, best: this.best, isNewBest });
+      this.scene.launch('GameOver', {
+        score,
+        best: this.best,
+        isNewBest,
+        coinsEarned: ended.coins,
+        coins: ended.progress.coins,
+      });
     });
   }
 

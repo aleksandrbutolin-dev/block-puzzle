@@ -13,6 +13,7 @@ export const TEX = {
   shelf: 'shelf',
   background: 'background',
   cloud: 'cloud',
+  coin: 'coin',
   soundOn: 'sound-on',
   soundOff: 'sound-off',
   spark: 'spark',
@@ -397,6 +398,34 @@ function drawCloud(ctx, W, H) {
   ctx.fill();
 }
 
+// Золотая монета со звездой.
+function drawCoin(ctx, S) {
+  const c = S / 2;
+  const r = S / 2 - 4;
+  ctx.fillStyle = '#b86e12';
+  ctx.beginPath();
+  ctx.arc(c, c + 3, r, 0, Math.PI * 2);
+  ctx.fill();
+  const face = ctx.createLinearGradient(0, 0, 0, S);
+  face.addColorStop(0, '#fff2a8');
+  face.addColorStop(0.5, '#ffc93a');
+  face.addColorStop(1, '#f09a16');
+  ctx.fillStyle = face;
+  ctx.beginPath();
+  ctx.arc(c, c, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#d98010';
+  ctx.lineWidth = S * 0.05;
+  ctx.beginPath();
+  ctx.arc(c, c, r * 0.74, 0, Math.PI * 2);
+  ctx.stroke();
+  drawIcon(ctx, 'star', c, c, r * 0.5, 0xf0a020);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath();
+  ctx.ellipse(c - r * 0.45, c - r * 0.5, r * 0.18, r * 0.1, -0.7, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 // Круглая кнопка звука: динамик + волны или крестик.
 function drawSoundIcon(ctx, S, on) {
   const c = S / 2;
@@ -483,6 +512,7 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
   makeCanvas(scene, TEX.cloud, 260, 150, drawCloud);
+  makeCanvas(scene, TEX.coin, 96, 96, (ctx, S) => drawCoin(ctx, S));
   makeCanvas(scene, TEX.soundOn, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, true));
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));

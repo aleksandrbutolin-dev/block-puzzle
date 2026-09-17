@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { THEME } from './theme.js';
+import { TEX } from './textures.js';
 import { addText, addButton } from './ui.js';
 import { playSound } from '../platform/audio.js';
 
@@ -13,7 +14,7 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create({ score, best, isNewBest }) {
+  create({ score, best, isNewBest, coinsEarned = 0 }) {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
@@ -41,14 +42,22 @@ export class GameOverScene extends Phaser.Scene {
     const title = addText(this, 0, -PANEL_H / 2, 'Игра окончена', 50, { stroke: '#8a2358' });
 
     const muted = { color: THEME.panelMuted, stroke: null };
-    const scoreLabel = addText(this, 0, -170, 'Счёт', 36, muted);
-    const scoreText = addText(this, 0, -80, '0', 120, { color: THEME.panelText, stroke: null });
+    const scoreLabel = addText(this, 0, -185, 'Счёт', 36, muted);
+    const scoreText = addText(this, 0, -100, '0', 120, { color: THEME.panelText, stroke: null });
     const bestText = isNewBest
-      ? addText(this, 0, 50, 'Новый рекорд!', 44, { color: THEME.gold, stroke: '#b5651d' })
-      : addText(this, 0, 50, `Рекорд: ${best}`, 40, muted);
-    const button = addButton(this, 0, 190, 'Заново', () => this.restart());
+      ? addText(this, 0, 20, 'Новый рекорд!', 44, { color: THEME.gold, stroke: '#b5651d' })
+      : addText(this, 0, 20, `Рекорд: ${best}`, 40, muted);
 
-    panel.add([bg, ribbon, title, scoreLabel, scoreText, bestText, button]);
+    // Монеты за партию
+    const coinsText = addText(this, 0, 100, `+${coinsEarned}`, 52, { color: THEME.gold, stroke: '#b5651d' });
+    const coinIcon = this.add.image(0, 100, TEX.coin).setDisplaySize(60, 60);
+    const rowWidth = coinIcon.displayWidth + 12 + coinsText.width;
+    coinIcon.x = -rowWidth / 2 + coinIcon.displayWidth / 2;
+    coinsText.setOrigin(0, 0.5).setX(coinIcon.x + coinIcon.displayWidth / 2 + 12 - coinsText.padding.left);
+
+    const button = addButton(this, 0, 215, 'Заново', () => this.restart());
+
+    panel.add([bg, ribbon, title, scoreLabel, scoreText, bestText, coinIcon, coinsText, button]);
     panel.setScale(0.6).setAlpha(0);
 
     this.tweens.add({ targets: shade, alpha: 1, duration: 250 });
