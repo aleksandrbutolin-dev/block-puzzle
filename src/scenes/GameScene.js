@@ -6,7 +6,14 @@ import { createRng } from '../core/random.js';
 import { createScoreState, scoreMove } from '../core/score.js';
 import { loadValue, saveValue } from '../platform/storage.js';
 import { THEME } from './theme.js';
-import { TEX, TRAY_TEX_PADDING, TRAY_TEX_MARGIN, addBlock } from './textures.js';
+import {
+  TEX,
+  BOARD_TEX_PADDING,
+  BOARD_TEX_MARGIN,
+  SHELF_SIZE,
+  SHELF_PANEL_CENTER_Y,
+  addBlock,
+} from './textures.js';
 import { addText } from './ui.js';
 
 // Раскладка экрана 720×1280.
@@ -48,6 +55,9 @@ export class GameScene extends Phaser.Scene {
 
     this.add.image(0, 0, TEX.background).setOrigin(0);
     this.createBoardView();
+    this.add
+      .image(GAME_WIDTH / 2, TRAY_Y + SHELF_SIZE.height / 2 - SHELF_PANEL_CENTER_Y, TEX.shelf)
+      .setOrigin(0.5);
 
     this.bestText = addText(this, GAME_WIDTH / 2, 52, '', 30);
     this.scoreText = addText(this, GAME_WIDTH / 2, 142, '0', 104);
@@ -69,19 +79,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   createBoardView() {
-    const offset = TRAY_TEX_PADDING + TRAY_TEX_MARGIN;
-    this.add.image(BOARD_X - offset, BOARD_Y - offset, TEX.tray).setOrigin(0);
+    const offset = BOARD_TEX_PADDING + BOARD_TEX_MARGIN;
+    this.add.image(BOARD_X - offset, BOARD_Y - offset, TEX.board).setOrigin(0);
 
     this.blockViews = [];
     this.previewViews = [];
+    this.ghostFrames = [];
     for (let r = 0; r < BOARD_SIZE; r++) {
       this.blockViews.push([]);
       this.previewViews.push([]);
+      this.ghostFrames.push([]);
       for (let c = 0; c < BOARD_SIZE; c++) {
         const { x, y } = cellCenter(r, c);
         this.add.image(x, y, TEX.cell).setDisplaySize(CELL, CELL);
         this.blockViews[r].push(addBlock(this, x, y, CELL, 0).setVisible(false).setDepth(1));
         this.previewViews[r].push(addBlock(this, x, y, CELL, 0).setVisible(false).setDepth(2));
+        this.ghostFrames[r].push(
+          this.add.image(x, y, TEX.ghostFrame).setDisplaySize(CELL, CELL).setVisible(false).setDepth(3),
+        );
       }
     }
   }
@@ -93,7 +108,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isOver || this.drag || !piece || this.returning.has(slot)) return;
 
     const { rows, cols } = pieceSize(piece.cells);
-    const sprite = this.makePieceView(piece, CELL).setDepth(10);
+    const sprite = this.makePieceView(piece, CELL, true).setDepth(10);
 
     this.drag = {
       slot,
@@ -300,8 +315,14 @@ export class GameScene extends Phaser.Scene {
   // ---------- Отрисовка ----------
 
   // Фигура из блоков; (0, 0) контейнера — левый верхний угол фигуры.
-  makePieceView(piece, size) {
+  makePieceView(piece, size, withShadow = false) {
     const container = this.add.container(0, 0);
+    if (withShadow) {
+      for (const [r, c] of piece.cells) {
+        const shadow = this.add.image(c * size + size / 2 + 8, r * size + size / 2 + 16, TEX.blockShadow);
+        container.add(shadow.setDisplaySize(size, size));
+      }
+    }
     for (const [r, c] of piece.cells) {
       container.add(addBlock(this, c * size + size / 2, r * size + size / 2, size, piece.color));
     }
@@ -329,8 +350,11 @@ export class GameScene extends Phaser.Scene {
 
   // Подсветка места под фигурой и линий, которые исчезнут после хода.
   drawPreview() {
-    for (const line of this.previewViews) {
-      for (const view of line) view.setVisible(false);
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        this.previewViews[r][c].setVisible(false);
+        this.ghostFrames[r][c].setVisible(false);
+      }
     }
     const drag = this.drag;
     if (!drag?.target) return;
@@ -344,7 +368,8 @@ export class GameScene extends Phaser.Scene {
     }
     for (const [dr, dc] of drag.piece.cells) {
       const view = this.previewViews[row + dr][col + dc];
-      if (!view.visible) view.setTexture(texture).setAlpha(0.4).setVisible(true);
+      if (!view.visible) view.setTexture(texture).setAlpha(0.45).setVisible(true);
+      this.ghostFrames[row + dr][col + dc].setVisible(true);
     }
   }
 

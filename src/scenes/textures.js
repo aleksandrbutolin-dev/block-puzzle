@@ -2,20 +2,25 @@
 // Без файлов картинок — быстрее загрузка и нет вопросов с лицензиями.
 
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { THEME } from './theme.js';
+import { THEME, BLOCK_ICONS } from './theme.js';
 
 export const TEX = {
   block: (color) => `block-${color}`,
+  blockShadow: 'block-shadow',
+  ghostFrame: 'ghost-frame',
   cell: 'cell',
-  tray: 'tray',
+  board: 'board',
+  shelf: 'shelf',
   background: 'background',
   spark: 'spark',
   star: 'star',
 };
 
 const BLOCK_PX = 128; // текстура крупнее экранного размера — чётче при уменьшении
-export const TRAY_TEX_PADDING = 18; // рамка лотка вокруг клеток
-export const TRAY_TEX_MARGIN = 28; // место под тень
+export const BOARD_TEX_PADDING = 22; // рамка вокруг клеток поля
+export const BOARD_TEX_MARGIN = 28; // место под тень
+export const SHELF_SIZE = { width: 688, height: 280 };
+export const SHELF_PANEL_CENTER_Y = 8 + (SHELF_SIZE.height - 44) / 2; // центр панели внутри текстуры
 
 // ---------- Цвета ----------
 
@@ -24,17 +29,12 @@ function toRgb(hex) {
 }
 
 // amount > 0 — светлее (к белому), < 0 — темнее (к чёрному).
-function shade(hex, amount) {
+function shade(hex, amount, alpha = 1) {
   const { r, g, b } = toRgb(hex);
   const target = amount > 0 ? 255 : 0;
   const k = Math.abs(amount);
   const mix = (v) => Math.round(v + (target - v) * k);
-  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
-}
-
-function rgba(hex, alpha) {
-  const { r, g, b } = toRgb(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${alpha})`;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -64,135 +64,254 @@ function seeded(seed) {
   };
 }
 
+// ---------- Значки на блоках ----------
+
+// Контур значка с центром (cx, cy) и размером r.
+function iconPath(ctx, icon, cx, cy, r) {
+  ctx.beginPath();
+  switch (icon) {
+    case 'heart': {
+      const top = cy - r * 0.45;
+      ctx.moveTo(cx, cy + r * 0.85);
+      ctx.bezierCurveTo(cx - r * 1.25, cy + r * 0.05, cx - r * 0.85, top - r * 0.75, cx, top + r * 0.05);
+      ctx.bezierCurveTo(cx + r * 0.85, top - r * 0.75, cx + r * 1.25, cy + r * 0.05, cx, cy + r * 0.85);
+      break;
+    }
+    case 'circle':
+      ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
+      break;
+    case 'star':
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 ? r * 0.45 : r;
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr + r * 0.08);
+      }
+      break;
+    case 'diamond':
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r * 0.78, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r * 0.78, cy);
+      break;
+    case 'drop':
+      ctx.moveTo(cx, cy - r);
+      ctx.bezierCurveTo(cx + r * 0.2, cy - r * 0.5, cx + r * 0.8, cy, cx + r * 0.8, cy + r * 0.3);
+      ctx.arc(cx, cy + r * 0.3, r * 0.8, 0, Math.PI);
+      ctx.bezierCurveTo(cx - r * 0.8, cy, cx - r * 0.2, cy - r * 0.5, cx, cy - r);
+      break;
+    case 'square':
+      roundRect(ctx, cx - r * 0.7, cy - r * 0.7, r * 1.4, r * 1.4, r * 0.28);
+      return;
+    case 'flower':
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        const px = cx + Math.cos(a) * r * 0.5;
+        const py = cy + Math.sin(a) * r * 0.5;
+        ctx.moveTo(px + r * 0.42, py);
+        ctx.arc(px, py, r * 0.42, 0, Math.PI * 2);
+      }
+      ctx.moveTo(cx + r * 0.4, cy);
+      ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
+      return;
+  }
+  ctx.closePath();
+}
+
+// «Выдавленный» значок: тёмная нижняя кромка + светлая заливка.
+function drawIcon(ctx, icon, cx, cy, r, base) {
+  iconPath(ctx, icon, cx, cy + 3, r);
+  ctx.fillStyle = shade(base, -0.45, 0.55);
+  ctx.fill();
+  iconPath(ctx, icon, cx, cy, r);
+  const g = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+  g.addColorStop(0, shade(base, 0.7, 0.95));
+  g.addColorStop(1, shade(base, 0.3, 0.9));
+  ctx.fillStyle = g;
+  ctx.fill();
+}
+
 // ---------- Блок: глянцевая пластиковая игрушка ----------
 
-function drawBlock(ctx, S, base) {
-  const inset = 5;
+function drawBlock(ctx, S, base, icon) {
+  const inset = 4;
   const w = S - inset * 2;
-  const radius = S * 0.26;
-  const depth = S * 0.09; // высота «бортика» снизу
+  const radius = S * 0.24;
+  const depth = S * 0.08; // высота «бортика» снизу
+  const faceH = w - depth - 4;
 
-  // Мягкая тень на поверхности
-  ctx.fillStyle = 'rgba(40, 10, 50, 0.28)';
-  roundRect(ctx, inset + 2, inset + depth + 3, w - 4, w - depth, radius);
+  // Тёмная обводка всего блока — чёткая граница между соседями
+  ctx.fillStyle = shade(base, -0.62);
+  roundRect(ctx, inset, inset, w, w, radius);
   ctx.fill();
 
   // Боковина (объём)
-  ctx.fillStyle = shade(base, -0.38);
-  roundRect(ctx, inset, inset + depth, w, w - depth, radius);
+  ctx.fillStyle = shade(base, -0.32);
+  roundRect(ctx, inset + 3, inset + 3, w - 6, w - 6, radius - 3);
   ctx.fill();
 
-  // Лицевая грань с вертикальным градиентом
-  const faceH = w - depth;
-  const face = ctx.createLinearGradient(0, inset, 0, inset + faceH);
-  face.addColorStop(0, shade(base, 0.35));
-  face.addColorStop(0.45, shade(base, 0.05));
-  face.addColorStop(1, shade(base, -0.12));
+  // Лицевая грань
+  const fx = inset + 3;
+  const fy = inset + 3;
+  const fw = w - 6;
+  const face = ctx.createLinearGradient(0, fy, 0, fy + faceH);
+  face.addColorStop(0, shade(base, 0.32));
+  face.addColorStop(0.5, shade(base, 0.02));
+  face.addColorStop(1, shade(base, -0.1));
   ctx.fillStyle = face;
-  roundRect(ctx, inset, inset, w, faceH, radius);
+  roundRect(ctx, fx, fy, fw, faceH, radius - 3);
   ctx.fill();
 
-  // Мягкое свечение изнутри (подповерхностное рассеяние)
   ctx.save();
-  roundRect(ctx, inset, inset, w, faceH, radius);
+  roundRect(ctx, fx, fy, fw, faceH, radius - 3);
   ctx.clip();
-  const glow = ctx.createRadialGradient(S * 0.4, S * 0.35, 0, S * 0.4, S * 0.35, S * 0.55);
-  glow.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
-  glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, S, S);
 
-  // Нижний отражённый свет
-  const rim = ctx.createLinearGradient(0, inset + faceH * 0.7, 0, inset + faceH);
-  rim.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  rim.addColorStop(1, 'rgba(255, 240, 220, 0.22)');
-  ctx.fillStyle = rim;
-  ctx.fillRect(0, 0, S, S);
-  ctx.restore();
+  // Светлая фаска сверху-слева
+  ctx.strokeStyle = shade(base, 0.6, 0.9);
+  ctx.lineWidth = 5;
+  roundRect(ctx, fx + 1, fy + 1, fw - 2, faceH + 20, radius - 4);
+  ctx.stroke();
 
-  // Крупный блик сверху
-  const hl = ctx.createLinearGradient(0, inset + 6, 0, inset + faceH * 0.42);
-  hl.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
+  // «Подушка» в центре — вторая ступень объёма
+  const px = fx + S * 0.14;
+  const py = fy + S * 0.13;
+  const pw = fw - S * 0.28;
+  const ph = faceH - S * 0.24;
+  ctx.fillStyle = shade(base, -0.28, 0.55);
+  roundRect(ctx, px, py + 2, pw, ph, S * 0.16);
+  ctx.fill();
+  const pillow = ctx.createLinearGradient(0, py, 0, py + ph);
+  pillow.addColorStop(0, shade(base, 0.12));
+  pillow.addColorStop(1, shade(base, 0.2));
+  ctx.fillStyle = pillow;
+  roundRect(ctx, px, py, pw, ph - 1, S * 0.16);
+  ctx.fill();
+
+  drawIcon(ctx, icon, S / 2, py + ph / 2, S * 0.2, base);
+
+  // Глянец сверху
+  const hl = ctx.createLinearGradient(0, fy, 0, fy + faceH * 0.45);
+  hl.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
   hl.addColorStop(1, 'rgba(255, 255, 255, 0)');
   ctx.fillStyle = hl;
-  roundRect(ctx, inset + S * 0.12, inset + S * 0.06, w - S * 0.24, faceH * 0.36, S * 0.16);
+  roundRect(ctx, fx + S * 0.08, fy + S * 0.03, fw - S * 0.16, faceH * 0.34, S * 0.14);
   ctx.fill();
+  ctx.restore();
 
-  // Точечный блик
+  // Блики
   ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
   ctx.beginPath();
-  ctx.ellipse(S * 0.27, S * 0.2, S * 0.055, S * 0.04, -0.5, 0, Math.PI * 2);
+  ctx.ellipse(S * 0.24, S * 0.17, S * 0.06, S * 0.035, -0.6, 0, Math.PI * 2);
   ctx.fill();
+  ctx.beginPath();
+  ctx.arc(S * 0.35, S * 0.13, S * 0.018, 0, Math.PI * 2);
+  ctx.fill();
+}
 
-  // Тонкий контур для читаемости на поле
-  ctx.strokeStyle = rgba(0x2a0f3a, 0.35);
-  ctx.lineWidth = 2;
-  roundRect(ctx, inset + 1, inset + 1, w - 2, w - 2, radius);
+// Мягкая тень под фигурой в руке.
+function drawBlockShadow(ctx, S) {
+  for (let i = 0; i < 6; i++) {
+    const grow = i * 3;
+    ctx.fillStyle = 'rgba(10, 5, 30, 0.13)';
+    roundRect(ctx, 14 - grow, 14 - grow, S - 28 + grow * 2, S - 28 + grow * 2, S * 0.24 + grow);
+    ctx.fill();
+  }
+}
+
+// Белая рамка подсказки места.
+function drawGhostFrame(ctx, S) {
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.lineWidth = 6;
+  roundRect(ctx, 8, 8, S - 16, S - 16, S * 0.22);
   ctx.stroke();
 }
 
-// ---------- Пустая клетка: углубление в лотке ----------
+// ---------- Пустая клетка: углубление в поле ----------
 
 function drawCell(ctx, S) {
-  const inset = 7;
+  const inset = 6;
   const w = S - inset * 2;
-  const radius = S * 0.22;
+  const radius = S * 0.2;
+
+  // Светлая нижняя кромка
+  ctx.fillStyle = THEME.css.cellEdge;
+  roundRect(ctx, inset, inset + 3, w, w - 3, radius);
+  ctx.fill();
 
   ctx.fillStyle = THEME.css.cellHole;
-  roundRect(ctx, inset, inset, w, w, radius);
+  roundRect(ctx, inset, inset, w, w - 3, radius);
   ctx.fill();
 
   // Внутренняя тень сверху
   ctx.save();
-  roundRect(ctx, inset, inset, w, w, radius);
+  roundRect(ctx, inset, inset, w, w - 3, radius);
   ctx.clip();
-  const inner = ctx.createLinearGradient(0, inset, 0, inset + w * 0.45);
-  inner.addColorStop(0, 'rgba(20, 5, 35, 0.45)');
-  inner.addColorStop(1, 'rgba(20, 5, 35, 0)');
+  const inner = ctx.createLinearGradient(0, inset, 0, inset + w * 0.4);
+  inner.addColorStop(0, 'rgba(0, 0, 15, 0.55)');
+  inner.addColorStop(1, 'rgba(0, 0, 15, 0)');
   ctx.fillStyle = inner;
   ctx.fillRect(0, 0, S, S);
   ctx.restore();
-
-  // Светлый нижний край
-  ctx.strokeStyle = 'rgba(255, 220, 255, 0.16)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(inset + radius, inset + w - 1.5);
-  ctx.lineTo(inset + w - radius, inset + w - 1.5);
-  ctx.stroke();
 }
 
-// ---------- Лоток под поле ----------
+// ---------- Поле и полка: тёмная панель в тёплой рамке ----------
 
-function drawTray(ctx, W, H) {
-  const m = TRAY_TEX_MARGIN;
-  const w = W - m * 2;
-  const h = H - m * 2;
-  const radius = 44;
-
+function drawFramedPanel(ctx, x, y, w, h, radius, frame, alpha = 1) {
   // Тень
   ctx.save();
-  ctx.shadowColor = 'rgba(70, 20, 70, 0.45)';
-  ctx.shadowBlur = 28;
+  ctx.shadowColor = 'rgba(60, 15, 60, 0.5)';
+  ctx.shadowBlur = 26;
   ctx.shadowOffsetY = 14;
-  ctx.fillStyle = THEME.css.trayEdge;
-  roundRect(ctx, m, m + 10, w, h, radius);
+  ctx.fillStyle = THEME.css.frameShadow;
+  roundRect(ctx, x, y + 8, w, h, radius);
   ctx.fill();
   ctx.restore();
 
-  // Верх лотка
-  const top = ctx.createLinearGradient(0, m, 0, m + h);
-  top.addColorStop(0, THEME.css.trayTop);
-  top.addColorStop(1, THEME.css.trayBottom);
-  ctx.fillStyle = top;
-  roundRect(ctx, m, m, w, h, radius);
+  // Рамка
+  const outer = ctx.createLinearGradient(0, y, 0, y + h);
+  outer.addColorStop(0, THEME.css.frameLight);
+  outer.addColorStop(1, THEME.css.frameDark);
+  ctx.fillStyle = outer;
+  roundRect(ctx, x, y, w, h, radius);
   ctx.fill();
-
-  // Блик по верхнему краю
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-  ctx.lineWidth = 4;
-  roundRect(ctx, m + 3, m + 3, w - 6, h - 6, radius - 3);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, x + 2, y + 2, w - 4, h - 4, radius - 2);
   ctx.stroke();
+
+  // Внутренняя панель
+  const ix = x + frame;
+  const iy = y + frame;
+  const iw = w - frame * 2;
+  const ih = h - frame * 2;
+  const ir = radius - frame * 0.7;
+  ctx.globalAlpha = alpha;
+  const inner = ctx.createLinearGradient(0, iy, 0, iy + ih);
+  inner.addColorStop(0, THEME.css.boardTop);
+  inner.addColorStop(1, THEME.css.boardBottom);
+  ctx.fillStyle = inner;
+  roundRect(ctx, ix, iy, iw, ih, ir);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Тень рамки на панели
+  ctx.save();
+  roundRect(ctx, ix, iy, iw, ih, ir);
+  ctx.clip();
+  const lip = ctx.createLinearGradient(0, iy, 0, iy + 24);
+  lip.addColorStop(0, 'rgba(0, 0, 20, 0.5)');
+  lip.addColorStop(1, 'rgba(0, 0, 20, 0)');
+  ctx.fillStyle = lip;
+  ctx.fillRect(ix, iy, iw, 24);
+  ctx.restore();
+}
+
+function drawBoard(ctx, W, H) {
+  const m = BOARD_TEX_MARGIN;
+  drawFramedPanel(ctx, m, m, W - m * 2, H - m * 2, 46, 14);
+}
+
+function drawShelf(ctx, W, H) {
+  drawFramedPanel(ctx, 8, 8, W - 16, H - 44, 40, 10, 0.92);
 }
 
 // ---------- Фон: тёплый закат, облака, холмы ----------
@@ -200,17 +319,17 @@ function drawTray(ctx, W, H) {
 function drawBackground(ctx, W, H) {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#6d5fd0');
-  sky.addColorStop(0.32, '#b57fd6');
-  sky.addColorStop(0.6, '#f79bb8');
-  sky.addColorStop(0.85, '#ffbf8f');
+  sky.addColorStop(0.3, '#a77ad8');
+  sky.addColorStop(0.58, '#f39ab9');
+  sky.addColorStop(0.82, '#ffbf8f');
   sky.addColorStop(1, '#ffd9a3');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
   // Солнце за полем — тёплое свечение
-  const sun = ctx.createRadialGradient(W * 0.5, H * 0.62, 0, W * 0.5, H * 0.62, W * 0.9);
-  sun.addColorStop(0, 'rgba(255, 236, 190, 0.85)');
-  sun.addColorStop(0.35, 'rgba(255, 200, 160, 0.35)');
+  const sun = ctx.createRadialGradient(W * 0.5, H * 0.6, 0, W * 0.5, H * 0.6, W * 0.9);
+  sun.addColorStop(0, 'rgba(255, 236, 190, 0.8)');
+  sun.addColorStop(0.35, 'rgba(255, 200, 160, 0.3)');
   sun.addColorStop(1, 'rgba(255, 200, 160, 0)');
   ctx.fillStyle = sun;
   ctx.fillRect(0, 0, W, H);
@@ -230,22 +349,28 @@ function drawBackground(ctx, W, H) {
     ctx.fill();
   }
 
-  // Пушистые облака
+  // Пушистые облака с тенью снизу
   const cloud = (cx, cy, scale, alpha) => {
-    ctx.fillStyle = `rgba(255, 240, 250, ${alpha})`;
     const puffs = [
       [-60, 10, 34], [-25, -12, 42], [18, -20, 48], [58, -2, 38], [85, 14, 26], [0, 16, 40],
     ];
-    ctx.beginPath();
-    for (const [dx, dy, r] of puffs) {
-      ctx.moveTo(cx + dx * scale + r * scale, cy + dy * scale);
-      ctx.arc(cx + dx * scale, cy + dy * scale, r * scale, 0, Math.PI * 2);
-    }
+    const path = (dy) => {
+      ctx.beginPath();
+      for (const [px, py, r] of puffs) {
+        ctx.moveTo(cx + px * scale + r * scale, cy + (py + dy) * scale);
+        ctx.arc(cx + px * scale, cy + (py + dy) * scale, r * scale, 0, Math.PI * 2);
+      }
+    };
+    path(6);
+    ctx.fillStyle = `rgba(180, 120, 200, ${alpha})`;
+    ctx.fill();
+    path(0);
+    ctx.fillStyle = `rgba(255, 244, 252, ${alpha})`;
     ctx.fill();
   };
-  cloud(120, 190, 0.9, 0.35);
-  cloud(610, 110, 0.7, 0.3);
-  cloud(560, 250, 0.55, 0.22);
+  cloud(110, 185, 0.9, 0.5);
+  cloud(615, 105, 0.7, 0.45);
+  cloud(580, 215, 0.5, 0.35);
 
   // Холмы внизу — два слоя
   const hills = (baseY, amp, color, phase) => {
@@ -260,8 +385,8 @@ function drawBackground(ctx, W, H) {
     ctx.closePath();
     ctx.fill();
   };
-  hills(H * 0.76, 26, 'rgba(214, 120, 170, 0.55)', 0.6);
-  hills(H * 0.82, 20, 'rgba(160, 84, 160, 0.75)', 2.1);
+  hills(H * 0.74, 26, 'rgba(214, 120, 170, 0.55)', 0.6);
+  hills(H * 0.8, 20, 'rgba(160, 84, 160, 0.75)', 2.1);
 
   const ground = ctx.createLinearGradient(0, H * 0.84, 0, H);
   ground.addColorStop(0, 'rgba(120, 60, 140, 0.6)');
@@ -282,21 +407,11 @@ function drawSpark(ctx, S) {
 }
 
 function drawStar(ctx, S) {
-  const cx = S / 2;
-  const cy = S / 2;
-  const outer = S * 0.46;
-  const inner = S * 0.2;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 ? inner : outer;
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-  }
-  ctx.closePath();
+  iconPath(ctx, 'star', S / 2, S / 2 - S * 0.04, S * 0.46);
   ctx.lineJoin = 'round';
   ctx.lineWidth = S * 0.08;
   ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
   ctx.stroke();
   ctx.fill();
 }
@@ -305,11 +420,16 @@ function drawStar(ctx, S) {
 
 export function generateTextures(scene, boardPx) {
   THEME.blocks.forEach((color, i) => {
-    makeCanvas(scene, TEX.block(i), BLOCK_PX, BLOCK_PX, (ctx, S) => drawBlock(ctx, S, color));
+    makeCanvas(scene, TEX.block(i), BLOCK_PX, BLOCK_PX, (ctx, S) =>
+      drawBlock(ctx, S, color, BLOCK_ICONS[i]),
+    );
   });
+  makeCanvas(scene, TEX.blockShadow, BLOCK_PX, BLOCK_PX, (ctx, S) => drawBlockShadow(ctx, S));
+  makeCanvas(scene, TEX.ghostFrame, BLOCK_PX, BLOCK_PX, (ctx, S) => drawGhostFrame(ctx, S));
   makeCanvas(scene, TEX.cell, BLOCK_PX, BLOCK_PX, (ctx, S) => drawCell(ctx, S));
-  const traySize = boardPx + (TRAY_TEX_PADDING + TRAY_TEX_MARGIN) * 2;
-  makeCanvas(scene, TEX.tray, traySize, traySize, drawTray);
+  const boardSize = boardPx + (BOARD_TEX_PADDING + BOARD_TEX_MARGIN) * 2;
+  makeCanvas(scene, TEX.board, boardSize, boardSize, drawBoard);
+  makeCanvas(scene, TEX.shelf, SHELF_SIZE.width, SHELF_SIZE.height, drawShelf);
   makeCanvas(scene, TEX.background, GAME_WIDTH, GAME_HEIGHT, drawBackground);
   makeCanvas(scene, TEX.spark, 48, 48, (ctx, S) => drawSpark(ctx, S));
   makeCanvas(scene, TEX.star, 48, 48, (ctx, S) => drawStar(ctx, S));
