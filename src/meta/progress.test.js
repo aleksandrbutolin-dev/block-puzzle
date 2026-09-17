@@ -25,6 +25,9 @@ import {
   currentLevel,
   totalStars,
   completeLevel,
+  isChapterDone,
+  isChapterClaimed,
+  claimChapter,
   COINS_PER_STAR,
   buySkin,
   selectSkin,
@@ -399,5 +402,43 @@ describe('уровни «Приключения»', () => {
     const p = migrateProgress({ coins: 10 });
     expect(p.levels.stars).toEqual({});
     expect(isLevelUnlocked(p, 1)).toBe(true);
+  });
+});
+
+describe('награда за главу', () => {
+  const chapter = { id: 1, from: 1, to: 3, reward: { coins: 150 } };
+  const finishChapter = () => {
+    let p = createProgress();
+    for (let id = 1; id <= 3; id++) p = completeLevel(p, id, 1).progress;
+    return p;
+  };
+
+  it('пока глава не пройдена — награды нет', () => {
+    let p = completeLevel(createProgress(), 1, 3).progress;
+    expect(isChapterDone(p, chapter)).toBe(false);
+    const result = claimChapter(p, chapter);
+    expect(result.coins).toBe(0);
+    expect(result.progress).toBe(p);
+  });
+
+  it('глава пройдена — монеты выдаются один раз', () => {
+    const done = finishChapter();
+    expect(isChapterDone(done, chapter)).toBe(true);
+    expect(isChapterClaimed(done, chapter.id)).toBe(false);
+
+    const first = claimChapter(done, chapter);
+    expect(first.coins).toBe(150);
+    expect(first.progress.coins).toBe(done.coins + 150);
+    expect(isChapterClaimed(first.progress, chapter.id)).toBe(true);
+
+    const second = claimChapter(first.progress, chapter);
+    expect(second.coins).toBe(0);
+    expect(second.progress).toBe(first.progress);
+  });
+
+  it('старое сохранение без списка глав', () => {
+    const p = migrateProgress({ levels: { stars: { 1: 3 } } });
+    expect(p.levels.chapters).toEqual([]);
+    expect(isChapterClaimed(p, 1)).toBe(false);
   });
 });

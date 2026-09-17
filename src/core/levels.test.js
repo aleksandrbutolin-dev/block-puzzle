@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LEVELS, LEVELS_TOTAL, getLevel } from './levels.js';
+import { LEVELS, LEVELS_TOTAL, CHAPTERS, chapterFor, getLevel } from './levels.js';
 import { createLevelState, GOAL_TYPES } from './level.js';
 import { BOARD_SIZE } from './board.js';
 
@@ -58,10 +58,25 @@ describe('уровни', () => {
     }
   });
 
-  it('сложность и число ходов растут от уровня к уровню', () => {
+  it('внутри главы сложность и число ходов не падают', () => {
+    // Новая глава может начинаться легче — это передышка после «босса» прошлой.
     for (let i = 1; i < LEVELS.length; i++) {
+      if (LEVELS[i].chapter !== LEVELS[i - 1].chapter) continue;
       expect(LEVELS[i].difficulty).toBeGreaterThanOrEqual(LEVELS[i - 1].difficulty);
       expect(LEVELS[i].moves).toBeGreaterThanOrEqual(LEVELS[i - 1].moves);
     }
+  });
+
+  it('главы покрывают все уровни без дыр', () => {
+    const covered = new Set();
+    for (const chapter of CHAPTERS) {
+      expect(chapter.to).toBeGreaterThanOrEqual(chapter.from);
+      for (let id = chapter.from; id <= chapter.to; id++) {
+        expect(chapterFor(id).id).toBe(chapter.id);
+        covered.add(id);
+      }
+    }
+    expect(covered.size).toBe(LEVELS_TOTAL);
+    expect(CHAPTERS.every((c) => c.reward.coins > 0)).toBe(true);
   });
 });

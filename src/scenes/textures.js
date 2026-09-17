@@ -28,6 +28,7 @@ export const TEX = {
   soundOff: 'sound-off',
   home: 'icon-home',
   lock: 'icon-lock',
+  chest: (open) => (open ? 'chest-open' : 'chest'),
   video: 'icon-video',
   hand: 'hand',
   tasks: 'icon-tasks',
@@ -727,6 +728,53 @@ function drawLock(ctx, S) {
   ctx.fill();
 }
 
+// Сундук с наградой за главу.
+function drawChest(ctx, S, open) {
+  const u = S / 96;
+  const body = () => {
+    ctx.fillStyle = '#a2652c';
+    roundRect(ctx, 14 * u, 46 * u, 68 * u, 38 * u, 8 * u);
+    ctx.fill();
+    ctx.fillStyle = '#c47f3b';
+    roundRect(ctx, 18 * u, 50 * u, 60 * u, 30 * u, 6 * u);
+    ctx.fill();
+    ctx.fillStyle = '#ffc93a';
+    roundRect(ctx, 42 * u, 52 * u, 12 * u, 26 * u, 4 * u);
+    ctx.fill();
+  };
+  const lid = (dy, angle) => {
+    ctx.save();
+    ctx.translate(48 * u, (46 + dy) * u);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#8a5322';
+    roundRect(ctx, -34 * u, -22 * u, 68 * u, 26 * u, 10 * u);
+    ctx.fill();
+    ctx.fillStyle = '#b06c2c';
+    roundRect(ctx, -30 * u, -18 * u, 60 * u, 18 * u, 8 * u);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  if (open) {
+    // Открытый: крышка откинута, внутри монеты.
+    lid(-6 * u, -0.5);
+    body();
+    ctx.fillStyle = '#ffd23f';
+    for (const [x, y, r] of [[34, 50, 9], [48, 46, 10], [62, 50, 9]]) {
+      ctx.beginPath();
+      ctx.arc(x * u, y * u, r * u, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    body();
+    lid(0, 0);
+    ctx.fillStyle = '#ffc93a';
+    ctx.beginPath();
+    ctx.arc(48 * u, 46 * u, 7 * u, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 // Значок «видео за награду»: экран с треугольником воспроизведения.
 function drawVideoIcon(ctx, S) {
   const u = S / 96;
@@ -881,6 +929,8 @@ export function generateTextures(scene, boardPx) {
   makeCanvas(scene, TEX.soundOff, 96, 96, (ctx, S) => drawSoundIcon(ctx, S, false));
   makeCanvas(scene, TEX.home, 96, 96, (ctx, S) => drawHomeIcon(ctx, S));
   makeCanvas(scene, TEX.lock, 96, 96, (ctx, S) => drawLock(ctx, S));
+  makeCanvas(scene, TEX.chest(false), 96, 96, (ctx, S) => drawChest(ctx, S, false));
+  makeCanvas(scene, TEX.chest(true), 96, 96, (ctx, S) => drawChest(ctx, S, true));
   makeCanvas(scene, TEX.video, 96, 96, (ctx, S) => drawVideoIcon(ctx, S));
   makeCanvas(scene, TEX.hand, 128, 128, (ctx, S) => drawHand(ctx, S));
   makeCanvas(scene, TEX.tasks, 96, 96, (ctx, S) => drawTasksIcon(ctx, S));

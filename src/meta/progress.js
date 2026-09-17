@@ -39,7 +39,7 @@ export function createProgress() {
     streak: { count: 0, lastDay: null },
     daily: { day: null, tasks: [] },
     skins: { owned: ['toys'], selected: 'toys' },
-    levels: { stars: {} }, // id уровня → звёзды (1–3)
+    levels: { stars: {}, chapters: [] }, // звёзды по уровням и полученные награды за главы
     stats: { games: 0, lines: 0, pieces: 0, quickLosses: 0 },
   };
 }
@@ -60,7 +60,12 @@ export function migrateProgress(saved, legacyBest = 0) {
     streak: { ...base.streak, ...saved.streak },
     daily: { ...base.daily, ...saved.daily },
     skins: { ...base.skins, ...saved.skins },
-    levels: { ...base.levels, ...saved.levels, stars: { ...saved.levels?.stars } },
+    levels: {
+      ...base.levels,
+      ...saved.levels,
+      stars: { ...saved.levels?.stars },
+      chapters: [...(saved.levels?.chapters ?? [])],
+    },
     stats: { ...base.stats, ...saved.stats },
   };
 }
@@ -239,6 +244,29 @@ export function currentLevel(progress, total) {
 
 export function totalStars(progress) {
   return Object.values(progress.levels.stars).reduce((sum, n) => sum + n, 0);
+}
+
+// Все уровни главы пройдены?
+export function isChapterDone(progress, chapter) {
+  for (let id = chapter.from; id <= chapter.to; id++) {
+    if (!isLevelDone(progress, id)) return false;
+  }
+  return true;
+}
+
+export function isChapterClaimed(progress, chapterId) {
+  return progress.levels.chapters.includes(chapterId);
+}
+
+// Награда за главу — один раз и только после прохождения всех её уровней.
+export function claimChapter(progress, chapter) {
+  if (!isChapterDone(progress, chapter) || isChapterClaimed(progress, chapter.id)) {
+    return { progress, coins: 0 };
+  }
+  const next = clone(progress);
+  next.levels.chapters.push(chapter.id);
+  next.coins += chapter.reward.coins;
+  return { progress: next, coins: chapter.reward.coins };
 }
 
 // Уровень пройден: звёзды не уменьшаются, монеты — только за новые звёзды.

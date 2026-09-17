@@ -1,13 +1,21 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { LEVELS, LEVELS_TOTAL } from '../core/levels.js';
-import { getProgress } from '../meta/store.js';
-import { levelStars, isLevelUnlocked, currentLevel, totalStars } from '../meta/progress.js';
+import { LEVELS, LEVELS_TOTAL, CHAPTERS } from '../core/levels.js';
+import { getProgress, setProgress } from '../meta/store.js';
+import {
+  levelStars,
+  isLevelUnlocked,
+  currentLevel,
+  totalStars,
+  isChapterDone,
+  isChapterClaimed,
+  claimChapter,
+} from '../meta/progress.js';
 import { playSound } from '../platform/audio.js';
 import { THEME } from './theme.js';
 import { TEX } from './textures.js';
 import { addBackdrop } from './backdrop.js';
-import { addText, addIconButton, addSoundButton, addCoinCounter, showToast } from './ui.js';
+import { addText, addIconButton, addSoundButton, addCoinCounter, showToast, flyCoins } from './ui.js';
 
 const NODE_R = 52; // радиус кружка уровня
 const STEP_Y = 165; // расстояние между уровнями
@@ -17,9 +25,11 @@ const BOTTOM = GAME_HEIGHT - 40;
 const VIEW_H = BOTTOM - TOP;
 const DRAG_THRESHOLD = 12; // сдвиг больше — это прокрутка, а не нажатие
 
+const CHAPTER_GAP = 150; // дополнительный отступ перед новой главой
+
 // Зигзаг тропинки.
 const nodeX = (index) => GAME_WIDTH / 2 + Math.sin(index * 0.95) * 150;
-const nodeY = (index) => FIRST_Y + index * STEP_Y;
+const nodeY = (index) => FIRST_Y + index * STEP_Y + (LEVELS[index].chapter - 1) * CHAPTER_GAP;
 
 // Карта «Приключения»: тропинка уровней с прокруткой.
 export class MapScene extends Phaser.Scene {
@@ -40,16 +50,16 @@ export class MapScene extends Phaser.Scene {
 
     // Тропинка живёт в контейнере, который двигается при прокрутке.
     this.path = this.add.container(0, 0);
-    this.contentH = nodeY(LEVELS_TOTAL - 1) + 160;
+    this.contentH = nodeY(LEVELS_TOTAL - 1) + 220;
     // Тропинка видна только в своей области, под шапкой.
     const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(0, TOP, GAME_WIDTH, VIEW_H);
     this.path.setMask(maskShape.createGeometryMask());
 
-    this.path.add(addText(this, GAME_WIDTH / 2, 50, 'Глава 1 · Закат', 38, { color: THEME.textMuted }));
     this.drawPath();
     LEVELS.forEach((level, i) => this.createNode(level, i, progress));
+    this.createChapterMarks(progress);
 
     this.setupScroll();
     this.scrollToLevel(currentLevel(progress, LEVELS_TOTAL));
@@ -69,6 +79,62 @@ export class MapScene extends Phaser.Scene {
       }
     }
     this.path.add(line);
+  }
+
+  // Заголовок главы перед её первым уровнем и сундук с наградой после последнего.
+  createChapterMarks(progress) {
+    for (const chapter of CHAPTERS) {
+      const firstIndex = chapter.from - 1;
+      const lastIndex = chapter.to - 1;
+
+      const title = addText(
+        this,
+        GAME_WIDTH / 2,
+        nodeY(firstIndex) - 100,
+        `Глава ${chapter.id} · ${chapter.title}`,
+        34,
+        { color: THEME.textMuted },
+      );
+      this.path.add(title);
+
+      const x = nodeX(lastIndex) > GAME_WIDTH / 2 ? nodeX(lastIndex) - 175 : nodeX(lastIndex) + 175;
+      const y = nodeY(lastIndex) + 10;
+      this.createChest(chapter, x, y, progress);
+    }
+  }
+
+  createChest(chapter, x, y, progress) {
+    const done = isChapterDone(progress, chapter);
+    const claimed = isChapterClaimed(progress, chapter.id);
+    const chest = this.add.image(x, y, TEX.chest(claimed)).setDisplaySize(96, 96);
+    const label = addText(this, x, y + 62, `${chapter.reward.coins}`, 28, { color: THEME.gold });
+    this.path.add([chest, label]);
+
+    if (!done) {
+      chest.setTint(0x8f88ab).setAlpha(0.7);
+      return;
+    }
+    if (claimed) return;
+
+    this.tweens.add({ targets: chest, scale: chest.scale * 1.12, duration: 600, yoyo: true, repeat: -1 });
+    const zone = this.add
+      .zone(x, y, 120, 120)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerup', () => {
+        if (this.scrolled) return;
+        const result = claimChapter(getProgress(), chapter);
+        if (result.coins === 0) return;
+        setProgress(result.progress);
+        this.tweens.killTweensOf(chest);
+        chest.setTexture(TEX.chest(true)).setDisplaySize(96, 96).setScale(chest.scale);
+        zone.destroy();
+        playSound('fanfare');
+        const m = chest.getWorldTransformMatrix();
+        flyCoins(this, m.tx, m.ty, this.coins, 10);
+        this.coins.setValue(result.progress.coins, true);
+        showToast(this, `Глава пройдена! +${result.coins}`, GAME_HEIGHT - 140);
+      });
+    this.path.add(zone);
   }
 
   createNode(level, index, progress) {
